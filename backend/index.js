@@ -107,9 +107,9 @@ app.get('/api/lugares', async (req, res) => {
                 nombre: e.tags.name || "Restaurante Cali",
                 categoria: e.tags.amenity === 'cafe' ? 'Café' : 'Restaurante',
                 precio: e.tags.price || "$$",
-                rating: 4.0 + (Math.random() * 1), // Rating simulado para OSM
+                rating: 4.0 + (Math.random() * 1),
                 descripcion: e.tags.cuisine ? `Cocina: ${e.tags.cuisine}` : "Restaurante típico en Cali.",
-                imagen_url: `https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?sig=${e.id}`,
+                imagen_url: `https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?sig=${index + 100}`,
                 lat: rLat,
                 lng: rLng,
                 distancia_info: distInfo

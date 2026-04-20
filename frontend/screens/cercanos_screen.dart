@@ -22,12 +22,7 @@ class _CercanosScreenState extends State<CercanosScreen> {
 
   Future<void> _cargarDatos() async {
     try {
-      print("PETICIÓN A: ${ApiConstants.apiBaseUrl}/lugares");
       final response = await http.get(Uri.parse("${ApiConstants.apiBaseUrl}/lugares"));
-      
-      print("RESPUESTA STATUS: ${response.statusCode}");
-      print("RESPUESTA BODY: ${response.body}");
-
       if (response.statusCode == 200) {
         setState(() {
           _lugares = jsonDecode(response.body);
@@ -37,7 +32,6 @@ class _CercanosScreenState extends State<CercanosScreen> {
         setState(() => _isLoading = false);
       }
     } catch (e) {
-      print("ERROR CARGANDO: $e");
       setState(() => _isLoading = false);
     }
   }
@@ -45,23 +39,49 @@ class _CercanosScreenState extends State<CercanosScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Lugares en Cali")),
+      appBar: AppBar(
+        title: const Text("Restaurantes en Cali"),
+        backgroundColor: Colors.orangeAccent,
+      ),
       body: _isLoading 
         ? const Center(child: CircularProgressIndicator())
-        : _lugares.isEmpty 
-          ? const Center(child: Text("No hay datos disponibles"))
-          : ListView.builder(
-              itemCount: _lugares.length,
-              itemBuilder: (context, index) {
-                final l = _lugares[index];
-                return ListTile(
-                  leading: const Icon(Icons.restaurant, color: Colors.orange),
-                  title: Text(l['nombre'] ?? "Sin nombre"),
-                  subtitle: Text(l['categoria'] ?? "Restaurante"),
-                  trailing: const Icon(Icons.chevron_right),
-                );
-              },
-            ),
+        : ListView.builder(
+            itemCount: _lugares.length,
+            padding: const EdgeInsets.all(10),
+            itemBuilder: (context, index) {
+              final l = _lugares[index];
+              final String imageUrl = l['imagen_url'] ?? 'https://via.placeholder.com/150';
+
+              return Card(
+                elevation: 4,
+                margin: const EdgeInsets.symmetric(vertical: 8),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                child: Column(
+                  children: [
+                    ClipRRect(
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
+                      child: Image.network(
+                        imageUrl,
+                        height: 180,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          height: 180,
+                          color: Colors.grey[300],
+                          child: const Icon(Icons.restaurant, size: 50),
+                        ),
+                      ),
+                    ),
+                    ListTile(
+                      title: Text(l['nombre'] ?? "Sin nombre", style: const TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: Text("${l['categoria'] ?? 'Restaurante'} • ${l['precio'] ?? '$$'}"),
+                      trailing: const Icon(Icons.star, color: Colors.amber),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
     );
   }
 }
