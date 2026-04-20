@@ -102,6 +102,9 @@ app.get('/api/lugares', async (req, res) => {
                 distInfo = calcularTiempos(d);
             }
 
+            const keywords = ['restaurant', 'food', 'dinner', 'cafe', 'gourmet', 'lunch'];
+            const randomKeyword = keywords[index % keywords.length];
+
             return {
                 id: e.id || index + 100,
                 nombre: e.tags.name || "Restaurante Cali",
@@ -109,7 +112,7 @@ app.get('/api/lugares', async (req, res) => {
                 precio: e.tags.price || "$$",
                 rating: 4.0 + (Math.random() * 1),
                 descripcion: e.tags.cuisine ? `Cocina: ${e.tags.cuisine}` : "Restaurante típico en Cali.",
-                imagen_url: `https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?sig=${index + 100}`,
+                imagen_url: `https://source.unsplash.com/featured/800x600?${randomKeyword}&sig=${index + 100}`,
                 lat: rLat,
                 lng: rLng,
                 distancia_info: distInfo
