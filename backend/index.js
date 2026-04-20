@@ -343,6 +343,44 @@ app.get('/api/usuarios/estadisticas', authenticateToken, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error" }); }
 });
 
+// --- ADMIN: RESET DB ---
+app.post('/api/admin/reset-db', async (req, res) => {
+    try {
+        console.log('[ADMIN] 🔄 Iniciando reset de base de datos...');
+
+        await pool.query('DELETE FROM resenas');
+        console.log('[ADMIN] ✅ Tabla resenas limpiada.');
+
+        await pool.query('DELETE FROM favoritos');
+        console.log('[ADMIN] ✅ Tabla favoritos limpiada.');
+
+        await pool.query('DELETE FROM usuarios');
+        console.log('[ADMIN] ✅ Tabla usuarios limpiada.');
+
+        await pool.query('DELETE FROM lugares');
+        await pool.query(
+            "INSERT INTO lugares (nombre, categoria, precio, price_level, rating, distancia, descripcion, imagen_url, lat, lng) VALUES " +
+            "('Restaurante Bella Vista', 'Restaurante', '$$', 'Caro', 4.5, '1.2km', 'Cocina local e internacional con terraza y vista panorámica.', 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4', 3.4516, -76.5320)," +
+            "('Café Aroma', 'Cafés', '$', 'Economico', 4.2, '800m', 'Café de especialidad y panadería artesanal.', 'https://images.unsplash.com/photo-1509042239860-f550ce710b93', 3.4520, -76.5310)," +
+            "('Bar La Cima', 'Discotecas', '$$$', 'Caro', 3.8, '2.1km', 'Coctelería creativa y música en vivo los fines de semana.', 'https://images.unsplash.com/photo-1514525253361-bee8d4206d9b', 3.4530, -76.5300)," +
+            "('Burger House', 'Restaurante', '$', 'Economico', 4.7, '500m', 'Las mejores hamburguesas artesanales de la ciudad.', 'https://images.unsplash.com/photo-1571091718767-18b5b1457add', 3.4400, -76.5200)," +
+            "('Museo de la Ciudad', 'Cultura', 'Gratis', 'Economico', 4.9, '1.5km', 'Historia y arte local en un edificio colonial.', 'https://images.unsplash.com/photo-1518998053502-531ed392138c', 3.4500, -76.5400)," +
+            "('Parque Central', 'Naturaleza', 'Gratis', 'Economico', 4.6, '300m', 'El pulmón verde de la ciudad para pasear.', 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e', 3.4550, -76.5350)"
+        );
+        console.log('[ADMIN] ✅ Tabla lugares re-sembrada con datos iniciales.');
+
+        console.log('[ADMIN] 🎉 Reset de base de datos completado exitosamente.');
+        res.json({
+            message: '✅ Base de datos reseteada exitosamente. Puedes registrarte de nuevo.',
+            tablas_limpiadas: ['resenas', 'favoritos', 'usuarios'],
+            lugares_restaurados: 6
+        });
+    } catch (err) {
+        console.error('[ADMIN] ❌ Error al resetear la base de datos:', err.message);
+        res.status(500).json({ error: 'Error al resetear la base de datos', detalle: err.message });
+    }
+});
+
 app.get('/db-status', async (req, res) => {
     try {
         await pool.query('SELECT 1');
