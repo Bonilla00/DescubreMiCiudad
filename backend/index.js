@@ -51,9 +51,12 @@ const runMigrations = async () => {
 
         console.log('✅ Base de datos lista.');
 
-        // Cargar lugares si está vacío
-        const { rows } = await pool.query("SELECT COUNT(*) FROM lugares");
-        if (parseInt(rows[0].count) === 0) {
+        // Cargar lugares si está vacío (DATOS DE PRUEBA DE CALI)
+        const { rows: countRows } = await pool.query("SELECT COUNT(*) FROM lugares");
+        console.log(`📊 Total lugares en DB: ${countRows[0].count}`);
+
+        if (parseInt(countRows[0].count) === 0) {
+            console.log('🌱 Insertando datos de prueba (Cali)...');
             const seedSql = `
                 INSERT INTO lugares (nombre, categoria, precio, price_level, rating, distancia, descripcion, imagen_url, lat, lng) VALUES
                 ('Restaurante Bella Vista', 'Restaurante', '$$', 'Caro', 4.5, '1.2km', 'Cocina local e internacional con terraza y vista panorámica.', 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4', 3.4516, -76.5320),
@@ -64,6 +67,7 @@ const runMigrations = async () => {
                 ('Parque Central', 'Naturaleza', 'Gratis', 'Economico', 4.6, '300m', 'El pulmón verde de la ciudad para pasear.', 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e', 3.4550, -76.5350);
             `;
             await pool.query(seedSql);
+            console.log('✅ Datos de prueba insertados con éxito.');
         }
 
     } catch (err) {
