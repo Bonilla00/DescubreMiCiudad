@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
-import '../services/lugares_service.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import '../constants/api.dart';
 import '../models/place_model.dart';
-import 'details_screen.dart'; // Aunque el usuario dijo que los modelos cambiaron, detalles_screen usará el modelo original por ahora si no lo ajusto.
+import 'details_screen.dart';
 
 class CercanosScreen extends StatefulWidget {
   const CercanosScreen({super.key});
@@ -12,140 +14,128 @@ class CercanosScreen extends StatefulWidget {
 }
 
 class _CercanosScreenState extends State<CercanosScreen> {
-  final LugaresService _service = LugaresService();
-  List<Place> _lugares = [];
+  List<dynamic> _restaurantes = [];
   bool _isLoading = true;
-  String _filter = "Todos"; // Todos, App, Real
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
-    _loadCercanos();
+    _fetchRestaurantes();
   }
 
-  Future<void> _loadCercanos() async {
-    setState(() => _isLoading = true);
+  Future<void> _fetchRestaurantes() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
     try {
-      bool serviceEnabled;
-      LocationPermission permission;
-
-      // 1. Verificar si el GPS está encendido
-      serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        throw 'El GPS está desactivado. Por favor, actívalo.';
-      }
-
-      // 2. Verificar y pedir permisos
-      permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          throw 'Permisos de ubicación denegados.';
-        }
-      }
-      
-      if (permission == LocationPermission.deniedForever) {
-        throw 'Permisos de ubicación denegados permanentemente.';
-      }
-
-      // 3. Obtener ubicación con alta precisión
+      // 1. Obtener ubicación
       Position position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       );
-      print('DEBUG: Ubicación obtenida -> ${position.latitude}, ${position.longitude}');
-      
-      // 4. Llamar al backend con coordenadas reales
-      final appResults = await _service.getCercanos(lat: position.latitude, lng: position.longitude);
-      
-      // Intentar obtener de Google si la API Key está configurada
-      List<Place> googleResults = [];
-      try {
-        googleResults = await _service.getGoogleCercanos(lat: position.latitude, lng: position.longitude);
-      } catch (e) {
-        print('DEBUG: Error opcional Google Places: $e');
-      }
-      
-      List<Place> allPlaces = [...appResults, ...googleResults];
-      print('DEBUG: Total lugares encontrados: ${allPlaces.length}');
 
+      final url = "${ApiConstants.apiBaseUrl}/lugares?lat=${position.latitude}&lng=${position.longitude}";
+      print("--- DEBUG HTTP ---");
+      print("URL: $url");
+
+      // 2. Petición HTTP
+      final response = await http.get(Uri.parse(url));
+      
+      print("STATUS: ${response.statusCode}");
+      print("BODY: ${response.body}");
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        print("TOTAL RESTAURANTES: ${data.length}");
+
+        // 3. Guardar en estado con setState
+        setState(() {
+          _restaurantes = data;
+          _isLoading = false;
+        });
+      } else {
+        throw "Error del servidor: ${response.statusCode}";
+      }
+    } catch (e) {
+      print("ERROR EN FLUTTER: $e");
       setState(() {
-        _lugares = allPlaces;
+        _errorMessage = e.toString();
         _isLoading = false;
       });
-    } catch (e) {
-      print('ERROR CRÍTICO: $e');
-      setState(() => _isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.toString()),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 5),
-          ),
-        );
-      }
     }
-  }
-
-  List<Place> get _filteredLugares {
-    if (_filter == "App") return _lugares.where((l) => !l.esGooglePlace).toList();
-    if (_filter == "Real") return _lugares.where((l) => l.esGooglePlace).toList();
-    return _lugares;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Lugares Cercanos"),
+        title: const Text("Restaurantes en Cali"),
         actions: [
-          IconButton(onPressed: _loadCercanos, icon: const Icon(Icons.refresh))
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _fetchRestaurantes,
+          )
         ],
       ),
-      body: Column(
-        children: [
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.all(8),
-            child: Row(
-              children: ["Todos", "App", "Real"].map((f) => Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: ChoiceChip(
-                  label: Text(f),
-                  selected: _filter == f,
-                  onSelected: (val) => setState(() => _filter = f),
-                ),
-              )).toList(),
-            ),
-          ),
-          Expanded(
-            child: _isLoading 
-              ? const Center(child: CircularProgressIndicator())
-              : ListView.builder(
-                  itemCount: _filteredLugares.length,
-                  itemBuilder: (context, index) {
-                    final l = _filteredLugares[index];
-                    return ListTile(
-                      leading: CircleAvatar(
-                        backgroundImage: NetworkImage(l.imageUrl == 'GOOGLE_IMAGE' ? 'https://via.placeholder.com/150' : l.imageUrl),
-                      ),
-                      title: Text(l.nombre),
-                      subtitle: Text(l.distanciaInfo != null 
-                        ? "${l.distanciaInfo!.distanciaKm.toStringAsFixed(1)} km • ${l.distanciaInfo!.tiempoCarroMin} min 🚗" 
-                        : l.categoria),
-                      trailing: l.esGooglePlace 
-                        ? const Badge(label: Text("Google"), backgroundColor: Colors.blue)
-                        : const Badge(label: Text("App"), backgroundColor: Colors.green),
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => DetailsScreen(place: l)),
-                      ),
-                    );
-                  },
-                ),
-          ),
-        ],
-      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _errorMessage != null
+              ? Center(child: Text("Error: $_errorMessage"))
+              : _restaurantes.isEmpty
+                  ? const Center(child: Text("No se encontraron restaurantes cercanos."))
+                  : ListView.builder(
+                      itemCount: _restaurantes.length,
+                      padding: const EdgeInsets.all(8),
+                      itemBuilder: (context, index) {
+                        final r = _restaurantes[index];
+                        
+                        // Mapeo seguro de datos
+                        final String nombre = r['nombre'] ?? 'Sin nombre';
+                        final String categoria = r['categoria'] ?? 'Restaurante';
+                        final double lat = (r['lat'] ?? 0.0).toDouble();
+                        final double lng = (r['lng'] ?? 0.0).toDouble();
+                        final String imagen = r['imagen_url'] ?? 'https://via.placeholder.com/150';
+
+                        return Card(
+                          elevation: 3,
+                          margin: const EdgeInsets.symmetric(vertical: 8),
+                          child: ListTile(
+                            leading: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.network(
+                                imagen,
+                                width: 60,
+                                height: 60,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => const Icon(Icons.restaurant),
+                              ),
+                            ),
+                            title: Text(
+                              nombre,
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(categoria),
+                                Text("Ubicación: $lat, $lng", style: const TextStyle(fontSize: 10)),
+                              ],
+                            ),
+                            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                            onTap: () {
+                              // Navegar a detalles usando el modelo
+                              final place = Place.fromJson(r);
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => DetailsScreen(place: place)),
+                              );
+                            },
+                          ),
+                        );
+                      },
+                    ),
     );
   }
 }
