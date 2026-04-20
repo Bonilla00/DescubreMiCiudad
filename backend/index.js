@@ -117,10 +117,19 @@ async function handleLogin(req, res) {
         console.log(`[AUTH] Intento login: ${cleanEmail}`);
         const { rows } = await pool.query('SELECT * FROM usuarios WHERE email = $1', [cleanEmail]);
         if (rows.length === 0) return res.status(401).json({ error: "No existe" });
+
         const valid = await bcrypt.compare(password, rows[0].password);
         if (!valid) return res.status(401).json({ error: "Password mal" });
+
         const token = jwt.sign({ userId: rows[0].id, nombre: rows[0].nombre }, JWT_SECRET, { expiresIn: '7d' });
-        res.json({ token, usuario: rows[0] });
+
+        // Fix Bug #3: No devolver la contraseña
+        const { password: _, ...usuarioSeguro } = rows[0];
+
+        res.json({
+            token,
+            usuario: usuarioSeguro
+        });
     } catch (err) {
         console.error("[AUTH] ❌ Error login:", err.message);
         res.status(500).json({ error: err.message });
