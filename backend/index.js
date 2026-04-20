@@ -28,17 +28,27 @@ const runMigrations = async () => {
         const initSql = fs.readFileSync(path.join(__dirname, 'src/migrations/init.sql'), 'utf8');
         await pool.query(initSql);
 
-        // Verificar columnas faltantes (ALTER TABLE manual para evitar fallos si ya existen)
+        // Verificar columnas faltantes
         await pool.query("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS foto_url TEXT DEFAULT NULL;");
 
-        // --- LIMPIEZA TOTAL PARA EMPEZAR DE CERO ---
-        // Descomenta la línea de abajo si quieres borrar todo cada vez que reinicies
-        // await pool.query("TRUNCATE TABLE usuarios CASCADE;");
+        // Asegurar que el usuario admin siempre exista
+        const hashedAdminPass = await bcrypt.hash('123456', 10);
+        const adminCheck = await pool.query('SELECT * FROM usuarios WHERE email = $1', ['admin@admin.com']);
 
-        // Borrar usuarios que NO sean el admin para limpiar pruebas fallidas
-        await pool.query("DELETE FROM usuarios WHERE email != 'admin@admin.com';");
+        if (adminCheck.rows.length === 0) {
+            await pool.query(
+                'INSERT INTO usuarios (nombre, email, password) VALUES ($1, $2, $3)',
+                ['Administrador', 'admin@admin.com', hashedAdminPass]
+            );
+            console.log('✅ Usuario admin creado.');
+        } else {
+            await pool.query(
+                'UPDATE usuarios SET password = $1 WHERE email = $2',
+                [hashedAdminPass, 'admin@admin.com']
+            );
+        }
 
-        // Insertar datos iniciales si la tabla está vacía
+        console.log('✅ Base de datos lista.');
         const { rows } = await pool.query("SELECT COUNT(*) FROM lugares");
         if (parseInt(rows[0].count) === 0) {
             const seedSql = `
