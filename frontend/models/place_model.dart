@@ -54,7 +54,7 @@ class Place {
       id: json['id'],
       nombre: json['nombre'] ?? json['name'] ?? 'Restaurante Cali',
       categoria: json['categoria'] ?? json['type'] ?? 'Lugar',
-      rangoPrecio: json['rangoPrecio'] ?? json['price_level']?.toString() ?? '$$',
+      rangoPrecio: json['rangoPrecio'] ?? json['price_level']?.toString() ?? '\$\$',
       descripcion: json['descripcion'] ?? 'Sin descripción disponible',
       latitud: (json['latitud'] ?? json['lat'] ?? 0.0).toDouble(),
       longitud: (json['longitud'] ?? json['lng'] ?? 0.0).toDouble(),
