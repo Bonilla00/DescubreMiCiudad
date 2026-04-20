@@ -79,12 +79,11 @@ app.get('/api/lugares', async (req, res) => {
     const { lat, lng } = req.query;
     console.log(`[OSM] Buscando restaurantes cerca de: ${lat}, ${lng}`);
 
-    // Query para Cali, Colombia (Área aproximada)
+    // Query para Cali, Colombia (Solo restaurantes reales)
     const overpassQuery = `
         [out:json][timeout:25];
         (
           node["amenity"="restaurant"](3.30,-76.60,3.55,-76.40);
-          node["amenity"="cafe"](3.30,-76.60,3.55,-76.40);
         );
         out body;
     `;
@@ -92,7 +91,9 @@ app.get('/api/lugares', async (req, res) => {
     try {
         const response = await axios.post('https://overpass-api.de/api/interpreter', overpassQuery);
 
-        let restaurantes = response.data.elements.map((e, index) => {
+        let restaurantes = response.data.elements
+            .filter(e => e.tags && e.tags.name) // Solo los que tienen nombre
+            .map((e, index) => {
             const rLat = e.lat;
             const rLng = e.lon;
             let distInfo = null;
@@ -102,17 +103,17 @@ app.get('/api/lugares', async (req, res) => {
                 distInfo = calcularTiempos(d);
             }
 
-            const keywords = ['restaurant', 'food', 'dinner', 'cafe', 'gourmet', 'lunch'];
+            const keywords = ['restaurant', 'food', 'steak', 'pizza', 'gourmet', 'dinner'];
             const randomKeyword = keywords[index % keywords.length];
 
             return {
                 id: e.id || index + 100,
-                nombre: e.tags.name || "Restaurante Cali",
-                categoria: e.tags.amenity === 'cafe' ? 'Café' : 'Restaurante',
+                nombre: e.tags.name,
+                categoria: 'Restaurante',
                 precio: e.tags.price || "$$",
-                rating: 4.0 + (Math.random() * 1),
-                descripcion: e.tags.cuisine ? `Cocina: ${e.tags.cuisine}` : "Restaurante típico en Cali.",
-                imagen_url: `https://source.unsplash.com/featured/800x600?${randomKeyword}&sig=${index + 100}`,
+                rating: 4.0 + (Math.random() * 0.9), // Rating más realista entre 4.0 y 4.9
+                descripcion: e.tags.cuisine ? `Cocina: ${e.tags.cuisine}` : "Excelente restaurante en Cali.",
+                imagen_url: `https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?sig=${index + 100}`,
                 lat: rLat,
                 lng: rLng,
                 distancia_info: distInfo

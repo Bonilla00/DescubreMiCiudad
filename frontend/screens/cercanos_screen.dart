@@ -24,8 +24,14 @@ class _CercanosScreenState extends State<CercanosScreen> {
     try {
       final response = await http.get(Uri.parse("${ApiConstants.apiBaseUrl}/lugares"));
       if (response.statusCode == 200) {
+        List<dynamic> data = jsonDecode(response.body);
+        
+        // Filtro de seguridad: Solo restaurantes con nombre válido
         setState(() {
-          _lugares = jsonDecode(response.body);
+          _lugares = data.where((l) => 
+            l['nombre'] != null && 
+            !l['nombre'].toString().toLowerCase().contains('fundacion')
+          ).toList();
           _isLoading = false;
         });
       } else {
@@ -40,7 +46,7 @@ class _CercanosScreenState extends State<CercanosScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Restaurantes en Cali"),
+        title: const Text("Restaurantes Reales Cali"),
         backgroundColor: Colors.orangeAccent,
       ),
       body: _isLoading 
@@ -50,7 +56,8 @@ class _CercanosScreenState extends State<CercanosScreen> {
             padding: const EdgeInsets.all(10),
             itemBuilder: (context, index) {
               final l = _lugares[index];
-              final String imageUrl = l['imagen_url'] ?? 'https://via.placeholder.com/150';
+              final String imageUrl = l['imagen_url'] ?? 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4';
+              final double rating = (l['rating'] ?? 4.0).toDouble();
 
               return Card(
                 elevation: 4,
@@ -65,17 +72,32 @@ class _CercanosScreenState extends State<CercanosScreen> {
                         height: 180,
                         width: double.infinity,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
+                        errorBuilder: (_, __, ___) => Image.network(
+                          'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4',
                           height: 180,
-                          color: Colors.grey[300],
-                          child: const Icon(Icons.restaurant, size: 50),
+                          fit: BoxFit.cover,
                         ),
                       ),
                     ),
                     ListTile(
-                      title: Text(l['nombre'] ?? "Sin nombre", style: const TextStyle(fontWeight: FontWeight.bold)),
+                      title: Text(
+                        l['nombre'] ?? "Restaurante", 
+                        maxLines: 1, 
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.bold)
+                      ),
                       subtitle: Text("${l['categoria'] ?? 'Restaurante'} • ${l['precio'] ?? '\$\$'}"),
-                      trailing: const Icon(Icons.star, color: Colors.amber),
+                      trailing: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.amber,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          rating.toStringAsFixed(1),
+                          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                        ),
+                      ),
                     ),
                   ],
                 ),
