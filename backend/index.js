@@ -84,15 +84,41 @@ app.post('/api/auth/register', async (req, res) => {
 
 app.post('/api/auth/login', async (req, res) => {
     const { email, password } = req.body;
+
+    if (!email || !password) {
+        return res.status(400).json({ error: "Email y contraseña requeridos" });
+    }
+
     try {
         const { rows } = await pool.query('SELECT * FROM usuarios WHERE email = $1', [email]);
-        if (rows.length === 0 || !(await bcrypt.compare(password, rows[0].password))) {
-            return res.status(401).json({ error: "Credenciales incorrectas" });
+
+        if (rows.length === 0) {
+            return res.status(401).json({ error: "Usuario no encontrado" });
         }
+
         const user = rows[0];
-        const token = jwt.sign({ userId: user.id, email: user.email, nombre: user.nombre }, JWT_SECRET, { expiresIn: '7d' });
-        res.json({ token, usuario: { id: user.id, nombre: user.nombre, email: user.email } });
+        const passwordValida = await bcrypt.compare(password, user.password);
+
+        if (!passwordValida) {
+            return res.status(401).json({ error: "Contraseña incorrecta" });
+        }
+
+        const token = jwt.sign(
+            { userId: user.id, email: user.email, nombre: user.nombre },
+            JWT_SECRET,
+            { expiresIn: '7d' }
+        );
+
+        res.json({
+            token,
+            usuario: {
+                id: user.id,
+                nombre: user.nombre,
+                email: user.email
+            }
+        });
     } catch (err) {
+        console.error("Error login:", err);
         res.status(500).json({ error: "Error en el servidor" });
     }
 });
