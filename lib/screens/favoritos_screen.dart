@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/favoritos_service.dart';
+import '../services/persistence_service.dart';
+import '../services/auth_service.dart';
+import '../services/lugares_service.dart';
 import '../models/place_model.dart';
 import 'place_detail_screen.dart';
 
@@ -13,6 +16,10 @@ class FavoritosScreen extends StatefulWidget {
 
 class _FavoritosScreenState extends State<FavoritosScreen> {
   final FavoritosService _favoritosService = FavoritosService();
+  final PersistenceService _persistenceService = PersistenceService();
+  final AuthService _authService = AuthService();
+  final LugaresService _lugaresService = LugaresService();
+
   List<Place> _favoritos = [];
   bool _isLoading = true;
 
@@ -23,17 +30,36 @@ class _FavoritosScreenState extends State<FavoritosScreen> {
   }
 
   void _loadFavoritos() async {
-    final list = await _favoritosService.getFavoritos();
+    setState(() => _isLoading = true);
+    final isLoggedIn = await _authService.isLoggedIn();
+    List<Place> allFavs = [];
+
+    if (isLoggedIn) {
+      allFavs = await _favoritosService.getFavoritos();
+    } else {
+      // Cargar locales
+      final localIds = await _persistenceService.getFavorites();
+      if (localIds.isNotEmpty) {
+        final allPlaces = await _lugaresService.getLugares();
+        allFavs = allPlaces.where((p) => localIds.contains(p.id)).toList();
+      }
+    }
+
     if (mounted) {
       setState(() {
-        _favoritos = list;
+        _favoritos = allFavs;
         _isLoading = false;
       });
     }
   }
 
   void _removeFavorito(int id) async {
-    await _favoritosService.toggleFavorito(id);
+    final isLoggedIn = await _authService.isLoggedIn();
+    if (isLoggedIn) {
+      await _favoritosService.toggleFavorito(id);
+    } else {
+      await _persistenceService.toggleFavorite(id);
+    }
     _loadFavoritos();
   }
 

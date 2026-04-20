@@ -9,6 +9,7 @@ import '../models/place_model.dart';
 import '../services/lugares_service.dart';
 import '../services/auth_service.dart';
 import '../services/favoritos_service.dart';
+import '../services/persistence_service.dart';
 
 class PlaceDetailScreen extends StatefulWidget {
   final Place place;
@@ -22,6 +23,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
   final LugaresService _lugaresService = LugaresService();
   final AuthService _authService = AuthService();
   final FavoritosService _favoritosService = FavoritosService();
+  final PersistenceService _persistenceService = PersistenceService();
   final _commentController = TextEditingController();
   
   Map<String, dynamic>? _detalle;
@@ -29,6 +31,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
   bool _isLoggedIn = false;
   bool _isFavorito = false;
   double _userRating = 5.0;
+  Map<String, dynamic>? _localReview;
   int _visitas = 0;
 
   @override
@@ -49,9 +52,13 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
   void _loadData() async {
     final detail = await _lugaresService.getLugarById(widget.place.id);
     final logged = await _authService.isLoggedIn();
+    final localRev = await _persistenceService.getLocalReview(widget.place.id);
+
     bool fav = false;
     if (logged) {
       fav = await _favoritosService.checkFavorito(widget.place.id);
+    } else {
+      fav = await _persistenceService.isFavorite(widget.place.id);
     }
     
     if (mounted) {
@@ -59,14 +66,24 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
         _detalle = detail;
         _isLoggedIn = logged;
         _isFavorito = fav;
+        _localReview = localRev;
+        if (localRev != null) {
+          _commentController.text = localRev['comment'] ?? '';
+          _userRating = (localRev['rating'] ?? 5.0).toDouble();
+        }
         _isLoading = false;
       });
     }
   }
 
   void _toggleFav() async {
-    if (!_isLoggedIn) return;
-    final res = await _favoritosService.toggleFavorito(widget.place.id);
+    bool res;
+    if (_isLoggedIn) {
+      res = await _favoritosService.toggleFavorito(widget.place.id);
+    } else {
+      res = await _persistenceService.toggleFavorite(widget.place.id);
+    }
+
     setState(() => _isFavorito = res);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -81,20 +98,30 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
   void _submitResena() async {
     if (_commentController.text.isEmpty) return;
     
-    final token = await _authService.getToken();
-    final response = await _lugaresService.agregarResenaConRating(
+    bool success = false;
+    if (_isLoggedIn) {
+      final token = await _authService.getToken();
+      success = await _lugaresService.agregarResenaConRating(
+        widget.place.id,
+        _commentController.text,
+        _userRating.toInt(),
+        token!
+      );
+    }
+
+    // Siempre guardamos localmente también
+    await _persistenceService.saveLocalReview(
       widget.place.id, 
       _commentController.text,
-      _userRating.toInt(),
-      token!
+      _userRating
     );
+    success = true; // Consideramos éxito si se guardó local
 
-    if (response) {
-      _commentController.clear();
+    if (success) {
       _loadData();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Reseña publicada'), backgroundColor: Colors.green),
+          const SnackBar(content: Text('Reseña guardada en la aplicación'), backgroundColor: Colors.green),
         );
       }
     }
@@ -112,11 +139,10 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
             icon: const Icon(Icons.share),
             onPressed: () => Share.share("${widget.place.nombre}\n${widget.place.descripcion}"),
           ),
-          if (_isLoggedIn)
-            IconButton(
-              icon: Icon(_isFavorito ? Icons.favorite : Icons.favorite_border, color: _isFavorito ? Colors.red : Colors.white),
-              onPressed: _toggleFav,
-            ),
+          IconButton(
+            icon: Icon(_isFavorito ? Icons.favorite : Icons.favorite_border, color: _isFavorito ? Colors.red : Colors.white),
+            onPressed: _toggleFav,
+          ),
         ],
       ),
       body: _isLoading
@@ -178,7 +204,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
                         Text(widget.place.descripcion),
                         const Divider(height: 32),
                         _buildResenasList(),
-                        if (_isLoggedIn) _buildAddResena(),
+                        _buildAddResena(),
                       ],
                     ),
                   )
@@ -226,7 +252,21 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
   }
 
   Widget _buildResenasList() {
-    final resenas = _detalle?['resenas'] as List? ?? [];
+    final resenas = List.from(_detalle?['resenas'] as List? ?? []);
+
+    // Agregar reseña local si existe y no está ya en la lista
+    if (_localReview != null) {
+      bool exists = resenas.any((r) => r['comentario'] == _localReview!['comment']);
+      if (!exists) {
+        resenas.insert(0, {
+          'usuario_nombre': 'Tú (Local)',
+          'fecha': _localReview!['date'],
+          'rating': _localReview!['rating'],
+          'comentario': _localReview!['comment'],
+        });
+      }
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -262,10 +302,10 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Divider(height: 32),
-        const Text("Danos tu opinión", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        const Text("Tu opinión personal", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         const SizedBox(height: 8),
         RatingBar.builder(
-          initialRating: 5,
+          initialRating: _userRating,
           minRating: 1,
           itemCount: 5,
           itemSize: 30,
@@ -279,7 +319,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
           maxLines: 3,
         ),
         const SizedBox(height: 8),
-        SizedBox(width: double.infinity, child: ElevatedButton(onPressed: _submitResena, style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1A73E8), foregroundColor: Colors.white), child: const Text("Publicar Reseña"))),
+        SizedBox(width: double.infinity, child: ElevatedButton(onPressed: _submitResena, style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1A73E8), foregroundColor: Colors.white), child: const Text("Guardar Reseña"))),
       ],
     );
   }
