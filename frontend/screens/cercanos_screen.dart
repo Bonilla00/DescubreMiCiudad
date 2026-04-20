@@ -31,37 +31,50 @@ class _CercanosScreenState extends State<CercanosScreen> {
     });
 
     try {
-      // 1. Obtener ubicación
-      Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
+      print("1. Verificando permisos de ubicación...");
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
 
-      final url = "${ApiConstants.apiBaseUrl}/lugares?lat=${position.latitude}&lng=${position.longitude}";
-      print("--- DEBUG HTTP ---");
-      print("URL: $url");
+      double lat = 3.4516; // Default Cali
+      double lng = -76.5320; // Default Cali
 
-      // 2. Petición HTTP
-      final response = await http.get(Uri.parse(url));
+      try {
+        print("2. Intentando obtener ubicación GPS...");
+        Position position = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+          timeLimit: const Duration(seconds: 5), // Límite de 5 seg para no bloquear la app
+        );
+        lat = position.latitude;
+        lng = position.longitude;
+        print("GPS EXITOSO: $lat, $lng");
+      } catch (e) {
+        print("GPS FALLÓ (Usando Cali por defecto): $e");
+      }
+
+      final url = "${ApiConstants.apiBaseUrl}/lugares?lat=$lat&lng=$lng";
+      print("3. Llamando al Backend: $url");
+
+      final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
       
       print("STATUS: ${response.statusCode}");
-      print("BODY: ${response.body}");
-
+      
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
-        print("TOTAL RESTAURANTES: ${data.length}");
+        print("4. TOTAL RESTAURANTES RECIBIDOS: ${data.length}");
 
-        // 3. Guardar en estado con setState
         setState(() {
           _restaurantes = data;
           _isLoading = false;
         });
       } else {
-        throw "Error del servidor: ${response.statusCode}";
+        throw "Servidor respondió con error ${response.statusCode}";
       }
     } catch (e) {
-      print("ERROR EN FLUTTER: $e");
+      print("ERROR CRÍTICO: $e");
       setState(() {
-        _errorMessage = e.toString();
+        _errorMessage = "No se pudo cargar la lista. Verifica tu conexión.";
         _isLoading = false;
       });
     }
@@ -72,6 +85,7 @@ class _CercanosScreenState extends State<CercanosScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Restaurantes en Cali"),
+        backgroundColor: Colors.orangeAccent,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -80,52 +94,49 @@ class _CercanosScreenState extends State<CercanosScreen> {
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _errorMessage != null
-              ? Center(child: Text("Error: $_errorMessage"))
-              : _restaurantes.isEmpty
-                  ? const Center(child: Text("No se encontraron restaurantes cercanos."))
+          ? const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 10),
+                  Text("Buscando restaurantes cercanos..."),
+                ],
+              ),
+            )
+          : RefreshIndicator(
+              onRefresh: _fetchRestaurantes,
+              child: _restaurantes.isEmpty
+                  ? const Center(child: Text("No se encontraron restaurantes."))
                   : ListView.builder(
                       itemCount: _restaurantes.length,
-                      padding: const EdgeInsets.all(8),
+                      padding: const EdgeInsets.all(12),
                       itemBuilder: (context, index) {
                         final r = _restaurantes[index];
+                        final String nombre = r['nombre'] ?? 'Restaurante';
+                        final String cat = r['categoria'] ?? 'Comida';
+                        final String img = r['imagen_url'] ?? 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4';
                         
-                        // Mapeo seguro de datos
-                        final String nombre = r['nombre'] ?? 'Sin nombre';
-                        final String categoria = r['categoria'] ?? 'Restaurante';
-                        final double lat = (r['lat'] ?? 0.0).toDouble();
-                        final double lng = (r['lng'] ?? 0.0).toDouble();
-                        final String imagen = r['imagen_url'] ?? 'https://via.placeholder.com/150';
-
                         return Card(
-                          elevation: 3,
-                          margin: const EdgeInsets.symmetric(vertical: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                          elevation: 4,
+                          margin: const EdgeInsets.only(bottom: 15),
                           child: ListTile(
+                            contentPadding: const EdgeInsets.all(10),
                             leading: ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(10),
                               child: Image.network(
-                                imagen,
-                                width: 60,
-                                height: 60,
+                                img,
+                                width: 70,
+                                height: 70,
                                 fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => const Icon(Icons.restaurant),
+                                errorBuilder: (_, __, ___) => const Icon(Icons.restaurant, size: 40),
                               ),
                             ),
-                            title: Text(
-                              nombre,
-                              style: const TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(categoria),
-                                Text("Ubicación: $lat, $lng", style: const TextStyle(fontSize: 10)),
-                              ],
-                            ),
-                            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                            title: Text(nombre, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                            subtitle: Text(cat),
+                            trailing: const Icon(Icons.arrow_forward_ios, color: Colors.orange),
                             onTap: () {
-                              // Navegar a detalles usando el modelo
                               final place = Place.fromJson(r);
                               Navigator.push(
                                 context,
@@ -136,6 +147,7 @@ class _CercanosScreenState extends State<CercanosScreen> {
                         );
                       },
                     ),
+            ),
     );
   }
 }
