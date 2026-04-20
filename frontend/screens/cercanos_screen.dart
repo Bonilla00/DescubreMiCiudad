@@ -74,7 +74,7 @@ class _CercanosScreenState extends State<CercanosScreen> {
                     ),
                     ListTile(
                       title: Text(l['nombre'] ?? "Sin nombre", style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text("${l['categoria'] ?? 'Restaurante'} • ${l['precio'] ?? '$$'}"),
+                      subtitle: Text("${l['categoria'] ?? 'Restaurante'} • ${l['precio'] ?? '\$\$'}"),
                       trailing: const Icon(Icons.star, color: Colors.amber),
                     ),
                   ],
