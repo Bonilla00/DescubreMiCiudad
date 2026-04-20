@@ -76,4 +76,37 @@ class AuthService {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString('nombre');
   }
+
+  Future<Map<String, dynamic>> getPerfil() async {
+    final token = await getToken();
+    try {
+      final response = await http.get(
+        Uri.parse('$apiBaseUrl/api/usuarios/perfil'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      return {'error': 'Error al obtener perfil'};
+    } catch (e) {
+      return {'error': 'Error de conexión: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> actualizarPerfil(Map<String, dynamic> datos) async {
+    final token = await getToken();
+    try {
+      final response = await http.put(
+        Uri.parse('$apiBaseUrl/api/usuarios/perfil'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(datos),
+      );
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'error': 'Error de conexión: $e'};
+    }
+  }
 }

@@ -11,9 +11,14 @@ dependencies:
     sdk: flutter
   http: ^1.2.0
   shared_preferences: ^2.2.3
-  google_maps_flutter: ^2.6.1
-  geolocator: ^11.0.0
+  url_launcher: ^6.3.1
   cached_network_image: ^3.3.1
+  flutter_rating_bar: ^4.0.1
+  intl: ^0.20.2
+  share_plus: ^10.1.0
+  geolocator: ^12.0.0
+  flutter_localizations:
+    sdk: flutter
 
 dev_dependencies:
   flutter_test:

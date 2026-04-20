@@ -25,5 +25,14 @@ CREATE TABLE IF NOT EXISTS resenas (
   lugar_id INTEGER REFERENCES lugares(id) ON DELETE CASCADE,
   usuario_id INTEGER REFERENCES usuarios(id) ON DELETE CASCADE,
   comentario TEXT NOT NULL,
+  rating INTEGER DEFAULT 5,
   fecha TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS favoritos (
+  id SERIAL PRIMARY KEY,
+  usuario_id INTEGER REFERENCES usuarios(id) ON DELETE CASCADE,
+  lugar_id INTEGER REFERENCES lugares(id) ON DELETE CASCADE,
+  creado_en TIMESTAMP DEFAULT NOW(),
+  UNIQUE(usuario_id, lugar_id)
 );

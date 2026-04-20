@@ -7,10 +7,8 @@
     <application
         android:label="Descubre Mi Ciudad"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
-        <meta-data
-            android:name="com.google.android.geo.API_KEY"
-            android:value="AIzaSyAA0DS5aCG0eD3YL-OOUp4-H9x6pGKcyOQ"/>
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="true">
         <activity
             android:name=".MainActivity"
             android:exported="true"
