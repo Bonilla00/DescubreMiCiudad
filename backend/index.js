@@ -66,52 +66,63 @@ const authenticateToken = (req, res, next) => {
 
 // --- AUTH ---
 app.post('/api/auth/register', async (req, res) => {
-    const { nombre, email, password } = req.body;
-    console.log(`Intentando registrar usuario: ${email}`);
+    let { nombre, email, password } = req.body;
 
     if (!nombre || !email || !password) {
         return res.status(400).json({ error: "Todos los campos son obligatorios" });
     }
 
+    const cleanEmail = email.trim().toLowerCase();
+
     try {
-        const check = await pool.query('SELECT id FROM usuarios WHERE email = $1', [email]);
+        console.log(`[AUTH] Intentando registrar: ${cleanEmail}`);
+        const check = await pool.query('SELECT id FROM usuarios WHERE email = $1', [cleanEmail]);
         if (check.rows.length > 0) {
-            console.log(`El email ya existe: ${email}`);
+            console.log(`[AUTH] El email ya existe: ${cleanEmail}`);
             return res.status(400).json({ error: "El email ya está registrado" });
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
         const result = await pool.query(
-            'INSERT INTO usuarios (nombre, email, password) VALUES ($1, $2, $3) RETURNING id',
-            [nombre, email, hashedPassword]
+            'INSERT INTO usuarios (nombre, email, password) VALUES ($1, $2, $3) RETURNING id, nombre, email',
+            [nombre.trim(), cleanEmail, hashedPassword]
         );
 
-        console.log(`✅ Usuario creado con éxito. ID: ${result.rows[0].id}`);
-        res.status(201).json({ message: "Usuario creado", userId: result.rows[0].id });
+        console.log(`[AUTH] ✅ Usuario creado ID: ${result.rows[0].id}`);
+        res.status(201).json({
+            message: "Usuario creado",
+            userId: result.rows[0].id,
+            usuario: result.rows[0]
+        });
     } catch (err) {
-        console.error("❌ Error en registro:", err);
-        res.status(500).json({ error: "Error interno del servidor al registrar" });
+        console.error("[AUTH] ❌ Error en registro:", err.message);
+        res.status(500).json({ error: "Error en el servidor al registrar usuario" });
     }
 });
 
 app.post('/api/auth/login', async (req, res) => {
-    const { email, password } = req.body;
+    let { email, password } = req.body;
 
     if (!email || !password) {
         return res.status(400).json({ error: "Email y contraseña requeridos" });
     }
 
+    const cleanEmail = email.trim().toLowerCase();
+
     try {
-        const { rows } = await pool.query('SELECT * FROM usuarios WHERE email = $1', [email]);
+        console.log(`[AUTH] Intento de login: ${cleanEmail}`);
+        const { rows } = await pool.query('SELECT * FROM usuarios WHERE email = $1', [cleanEmail]);
 
         if (rows.length === 0) {
-            return res.status(401).json({ error: "Usuario no encontrado" });
+            console.log(`[AUTH] ❌ Usuario no encontrado: ${cleanEmail}`);
+            return res.status(401).json({ error: "El correo no está registrado" });
         }
 
         const user = rows[0];
         const passwordValida = await bcrypt.compare(password, user.password);
 
         if (!passwordValida) {
+            console.log(`[AUTH] ❌ Contraseña incorrecta para: ${cleanEmail}`);
             return res.status(401).json({ error: "Contraseña incorrecta" });
         }
 
@@ -121,6 +132,7 @@ app.post('/api/auth/login', async (req, res) => {
             { expiresIn: '7d' }
         );
 
+        console.log(`[AUTH] ✅ Login exitoso: ${user.nombre}`);
         res.json({
             token,
             usuario: {
@@ -130,8 +142,8 @@ app.post('/api/auth/login', async (req, res) => {
             }
         });
     } catch (err) {
-        console.error("Error login:", err);
-        res.status(500).json({ error: "Error en el servidor" });
+        console.error("[AUTH] ❌ Error en login:", err.message);
+        res.status(500).json({ error: "Error interno del servidor" });
     }
 });
 
