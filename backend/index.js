@@ -82,88 +82,50 @@ const authenticateToken = (req, res, next) => {
     });
 };
 
-// --- AUTH ---
-app.post('/api/auth/register', async (req, res) => {
+// Rutas duplicadas para compatibilidad (con y sin /api)
+app.post('/api/auth/register', handleRegister);
+app.post('/auth/register', handleRegister);
+app.post('/api/auth/login', handleLogin);
+app.post('/auth/login', handleLogin);
+
+async function handleRegister(req, res) {
     let { nombre, email, password } = req.body;
-
-    if (!nombre || !email || !password) {
-        return res.status(400).json({ error: "Todos los campos son obligatorios" });
-    }
-
+    if (!nombre || !email || !password) return res.status(400).json({ error: "Datos incompletos" });
     const cleanEmail = email.trim().toLowerCase();
-
     try {
         console.log(`[AUTH] Intentando registrar: ${cleanEmail}`);
         const check = await pool.query('SELECT id FROM usuarios WHERE email = $1', [cleanEmail]);
-        if (check.rows.length > 0) {
-            console.log(`[AUTH] El email ya existe: ${cleanEmail}`);
-            return res.status(400).json({ error: "El email ya está registrado" });
-        }
-
+        if (check.rows.length > 0) return res.status(400).json({ error: "Email ya registrado" });
         const hashedPassword = await bcrypt.hash(password, 10);
         const result = await pool.query(
-            'INSERT INTO usuarios (nombre, email, password) VALUES ($1, $2, $3) RETURNING id, nombre, email',
+            'INSERT INTO usuarios (nombre, email, password) VALUES ($1, $2, $3) RETURNING id',
             [nombre.trim(), cleanEmail, hashedPassword]
         );
-
         console.log(`[AUTH] ✅ Usuario creado ID: ${result.rows[0].id}`);
-        res.status(201).json({
-            message: "Usuario creado",
-            userId: result.rows[0].id,
-            usuario: result.rows[0]
-        });
+        res.status(201).json({ message: "OK", userId: result.rows[0].id });
     } catch (err) {
-        console.error("[AUTH] ❌ Error en registro:", err.message);
-        res.status(500).json({ error: "Error en el servidor al registrar usuario" });
+        console.error("[AUTH] ❌ Error:", err.message);
+        res.status(500).json({ error: err.message });
     }
-});
+}
 
-app.post('/api/auth/login', async (req, res) => {
+async function handleLogin(req, res) {
     let { email, password } = req.body;
-
-    if (!email || !password) {
-        return res.status(400).json({ error: "Email y contraseña requeridos" });
-    }
-
+    if (!email || !password) return res.status(400).json({ error: "Faltan datos" });
     const cleanEmail = email.trim().toLowerCase();
-
     try {
-        console.log(`[AUTH] Intento de login: ${cleanEmail}`);
+        console.log(`[AUTH] Intento login: ${cleanEmail}`);
         const { rows } = await pool.query('SELECT * FROM usuarios WHERE email = $1', [cleanEmail]);
-
-        if (rows.length === 0) {
-            console.log(`[AUTH] ❌ Usuario no encontrado: ${cleanEmail}`);
-            return res.status(401).json({ error: "El correo no está registrado" });
-        }
-
-        const user = rows[0];
-        const passwordValida = await bcrypt.compare(password, user.password);
-
-        if (!passwordValida) {
-            console.log(`[AUTH] ❌ Contraseña incorrecta para: ${cleanEmail}`);
-            return res.status(401).json({ error: "Contraseña incorrecta" });
-        }
-
-        const token = jwt.sign(
-            { userId: user.id, email: user.email, nombre: user.nombre },
-            JWT_SECRET,
-            { expiresIn: '7d' }
-        );
-
-        console.log(`[AUTH] ✅ Login exitoso: ${user.nombre}`);
-        res.json({
-            token,
-            usuario: {
-                id: user.id,
-                nombre: user.nombre,
-                email: user.email
-            }
-        });
+        if (rows.length === 0) return res.status(401).json({ error: "No existe" });
+        const valid = await bcrypt.compare(password, rows[0].password);
+        if (!valid) return res.status(401).json({ error: "Password mal" });
+        const token = jwt.sign({ userId: rows[0].id, nombre: rows[0].nombre }, JWT_SECRET, { expiresIn: '7d' });
+        res.json({ token, usuario: rows[0] });
     } catch (err) {
-        console.error("[AUTH] ❌ Error en login:", err.message);
-        res.status(500).json({ error: "Error interno del servidor" });
+        console.error("[AUTH] ❌ Error login:", err.message);
+        res.status(500).json({ error: err.message });
     }
-});
+}
 
 // --- LUGARES ---
 app.get('/api/lugares', async (req, res) => {
