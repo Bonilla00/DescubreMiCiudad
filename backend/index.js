@@ -142,4 +142,86 @@ app.get('/api/lugares/cercanos', async (req, res) => {
     return app._router.handle({ method: 'get', url: '/api/lugares', query: req.query }, res);
 });
 
+// --- PERFIL DE USUARIO ---
+app.put('/api/usuarios/perfil', authenticateToken, async (req, res) => {
+    const { nombre, foto_url } = req.body;
+    try {
+        await pool.query(
+            'UPDATE usuarios SET nombre = $1, foto_url = $2 WHERE id = $3',
+            [nombre, foto_url, req.user.userId]
+        );
+        res.json({ message: "Perfil actualizado correctamente" });
+    } catch (err) {
+        res.status(500).json({ error: "Error al actualizar perfil" });
+    }
+});
+
+// --- FAVORITOS ---
+app.post('/api/favoritos', authenticateToken, async (req, res) => {
+    const { lugar_id } = req.body;
+    try {
+        await pool.query(
+            'INSERT INTO favoritos (usuario_id, lugar_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+            [req.user.userId, lugar_id]
+        );
+        res.json({ message: "Agregado a favoritos" });
+    } catch (err) {
+        res.status(500).json({ error: "Error al agregar favorito" });
+    }
+});
+
+app.delete('/api/favoritos/:lugarId', authenticateToken, async (req, res) => {
+    try {
+        await pool.query(
+            'DELETE FROM favoritos WHERE usuario_id = $1 AND lugar_id = $2',
+            [req.user.userId, req.params.lugarId]
+        );
+        res.json({ message: "Eliminado de favoritos" });
+    } catch (err) {
+        res.status(500).json({ error: "Error al eliminar favorito" });
+    }
+});
+
+app.get('/api/favoritos', authenticateToken, async (req, res) => {
+    try {
+        const { rows } = await pool.query(
+            'SELECT f.*, l.nombre, l.imagen_url FROM favoritos f JOIN lugares l ON f.lugar_id = l.id WHERE f.usuario_id = $1',
+            [req.user.userId]
+        );
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: "Error al obtener favoritos" });
+    }
+});
+
+// --- RESEÑAS Y RATING ---
+app.post('/api/resenas', authenticateToken, async (req, res) => {
+    const { lugar_id, comentario, rating } = req.body;
+    try {
+        const { rows } = await pool.query(
+            `INSERT INTO resenas (usuario_id, lugar_id, comentario, rating)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT (usuario_id, lugar_id)
+             DO UPDATE SET comentario = $3, rating = $4, fecha = NOW()
+             RETURNING *`,
+            [req.user.userId, lugar_id, comentario, rating]
+        );
+        res.json(rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: "Error al publicar reseña" });
+    }
+});
+
+app.get('/api/resenas/:lugarId', async (req, res) => {
+    try {
+        const { rows } = await pool.query(
+            'SELECT r.*, u.nombre as usuario_nombre FROM resenas r JOIN usuarios u ON r.usuario_id = u.id WHERE r.lugar_id = $1 ORDER BY r.fecha DESC',
+            [req.params.lugarId]
+        );
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: "Error al obtener reseñas" });
+    }
+});
+
 app.listen(PORT, () => console.log(`🚀 Servidor en puerto ${PORT}`));
