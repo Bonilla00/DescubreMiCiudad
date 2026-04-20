@@ -31,6 +31,13 @@ const runMigrations = async () => {
         // Verificar columnas faltantes (ALTER TABLE manual para evitar fallos si ya existen)
         await pool.query("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS foto_url TEXT DEFAULT NULL;");
 
+        // --- LIMPIEZA TOTAL PARA EMPEZAR DE CERO ---
+        // Descomenta la línea de abajo si quieres borrar todo cada vez que reinicies
+        // await pool.query("TRUNCATE TABLE usuarios CASCADE;");
+
+        // Borrar usuarios que NO sean el admin para limpiar pruebas fallidas
+        await pool.query("DELETE FROM usuarios WHERE email != 'admin@admin.com';");
+
         // Insertar datos iniciales si la tabla está vacía
         const { rows } = await pool.query("SELECT COUNT(*) FROM lugares");
         if (parseInt(rows[0].count) === 0) {
