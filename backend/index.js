@@ -27,49 +27,7 @@ const runMigrations = async () => {
     try {
         const initSql = fs.readFileSync(path.join(__dirname, 'src/migrations/init.sql'), 'utf8');
         await pool.query(initSql);
-
-        // Verificar columnas faltantes
-        await pool.query("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS foto_url TEXT DEFAULT NULL;");
-
-        // Asegurar que el usuario admin siempre exista
-        const hashedAdminPass = await bcrypt.hash('123456', 10);
-        const adminCheck = await pool.query('SELECT * FROM usuarios WHERE email = $1', ['admin@admin.com']);
-
-        if (adminCheck.rows.length === 0) {
-            await pool.query(
-                'INSERT INTO usuarios (nombre, email, password) VALUES ($1, $2, $3)',
-                ['Administrador', 'admin@admin.com', hashedAdminPass]
-            );
-            console.log('✅ Usuario admin creado.');
-        } else {
-            await pool.query(
-                'UPDATE usuarios SET password = $1, nombre = $2 WHERE email = $3',
-                [hashedAdminPass, 'Administrador', 'admin@admin.com']
-            );
-            console.log('✅ Contraseña de admin actualizada.');
-        }
-
         console.log('✅ Base de datos lista.');
-
-        // Cargar lugares si está vacío (DATOS DE PRUEBA DE CALI)
-        const { rows: countRows } = await pool.query("SELECT COUNT(*) FROM lugares");
-        console.log(`📊 Total lugares en DB: ${countRows[0].count}`);
-
-        if (parseInt(countRows[0].count) === 0) {
-            console.log('🌱 Insertando datos de prueba (Cali)...');
-            const seedSql = `
-                INSERT INTO lugares (nombre, categoria, precio, price_level, rating, distancia, descripcion, imagen_url, lat, lng) VALUES
-                ('Restaurante Bella Vista', 'Restaurante', '$$', 'Caro', 4.5, '1.2km', 'Cocina local e internacional con terraza y vista panorámica.', 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4', 3.4516, -76.5320),
-                ('Café Aroma', 'Cafés', '$', 'Economico', 4.2, '800m', 'Café de especialidad y panadería artesanal.', 'https://images.unsplash.com/photo-1509042239860-f550ce710b93', 3.4520, -76.5310),
-                ('Bar La Cima', 'Discotecas', '$$$', 'Caro', 3.8, '2.1km', 'Coctelería creativa y música en vivo los fines de semana.', 'https://images.unsplash.com/photo-1514525253361-bee8d4206d9b', 3.4530, -76.5300),
-                ('Burger House', 'Restaurante', '$', 'Economico', 4.7, '500m', 'Las mejores hamburguesas artesanales de la ciudad.', 'https://images.unsplash.com/photo-1571091718767-18b5b1457add', 3.4400, -76.5200),
-                ('Museo de la Ciudad', 'Cultura', 'Gratis', 'Economico', 4.9, '1.5km', 'Historia y arte local en un edificio colonial.', 'https://images.unsplash.com/photo-1518998053502-531ed392138c', 3.4500, -76.5400),
-                ('Parque Central', 'Naturaleza', 'Gratis', 'Economico', 4.6, '300m', 'El pulmón verde de la ciudad para pasear.', 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e', 3.4550, -76.5350);
-            `;
-            await pool.query(seedSql);
-            console.log('✅ Datos de prueba insertados con éxito.');
-        }
-
     } catch (err) {
         console.error('❌ Error en configuración de BD:', err);
     }
@@ -87,33 +45,23 @@ const authenticateToken = (req, res, next) => {
     });
 };
 
-// Rutas
-app.post('/api/auth/register', handleRegister);
-app.post('/auth/register', handleRegister);
-app.post('/api/auth/login', handleLogin);
-app.post('/auth/login', handleLogin);
-
-async function handleRegister(req, res) {
+// --- AUTH ---
+app.post('/api/auth/register', async (req, res) => {
     let { nombre, email, password } = req.body;
     if (!nombre || !email || !password) return res.status(400).json({ error: "Datos incompletos" });
     const cleanEmail = email.trim().toLowerCase();
     try {
-        const check = await pool.query('SELECT id FROM usuarios WHERE email = $1', [cleanEmail]);
-        if (check.rows.length > 0) return res.status(400).json({ error: "Email ya registrado" });
         const hashedPassword = await bcrypt.hash(password, 10);
         const result = await pool.query(
             'INSERT INTO usuarios (nombre, email, password) VALUES ($1, $2, $3) RETURNING id',
             [nombre.trim(), cleanEmail, hashedPassword]
         );
         res.status(201).json({ message: "OK", userId: result.rows[0].id });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-}
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
 
-async function handleLogin(req, res) {
+app.post('/api/auth/login', async (req, res) => {
     let { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ error: "Faltan datos" });
     const cleanEmail = email.trim().toLowerCase();
     try {
         const { rows } = await pool.query('SELECT * FROM usuarios WHERE email = $1', [cleanEmail]);
@@ -123,148 +71,71 @@ async function handleLogin(req, res) {
         const token = jwt.sign({ userId: rows[0].id, nombre: rows[0].nombre }, JWT_SECRET, { expiresIn: '7d' });
         const { password: _, ...usuarioSeguro } = rows[0];
         res.json({ token, usuario: usuarioSeguro });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-}
-
-// --- LUGARES ---
-app.get('/api/lugares', async (req, res) => {
-    const { lat, lng } = req.query;
-    try {
-        const { rows } = await pool.query('SELECT * FROM lugares ORDER BY rating DESC');
-        const results = rows.map(lugar => {
-            let distancia_info = null;
-            if (lat && lng) {
-                const dist = calcularDistancia(parseFloat(lat), parseFloat(lng), lugar.lat, lugar.lng);
-                distancia_info = calcularTiempos(dist);
-            }
-            return { ...lugar, distancia_info };
-        });
-        res.json(results);
-    } catch (err) { res.status(500).json({ error: "Error" }); }
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/lugares/buscar', async (req, res) => {
-    const { q, lat, lng } = req.query;
-    try {
-        let queryText = 'SELECT * FROM lugares WHERE 1=1';
-        let queryParams = [];
-        if (q) {
-            queryText += ' AND (nombre ILIKE $1 OR categoria ILIKE $1 OR descripcion ILIKE $1)';
-            queryParams.push(`%${q}%`);
-        }
-        queryText += ' ORDER BY rating DESC';
+// --- LUGARES CON OPENSTREETMAP ---
+app.get('/api/lugares', async (req, res) => {
+    const { lat, lng } = req.query;
+    console.log(`[OSM] Buscando restaurantes cerca de: ${lat}, ${lng}`);
 
-        const { rows } = await pool.query(queryText, queryParams);
-        const results = rows.map(lugar => {
-            let distancia_info = null;
+    // Query para Cali, Colombia (Área aproximada)
+    const overpassQuery = `
+        [out:json][timeout:25];
+        (
+          node["amenity"="restaurant"](3.30,-76.60,3.55,-76.40);
+          node["amenity"="cafe"](3.30,-76.60,3.55,-76.40);
+        );
+        out body;
+    `;
+
+    try {
+        const response = await axios.post('https://overpass-api.de/api/interpreter', overpassQuery);
+
+        let restaurantes = response.data.elements.map((e, index) => {
+            const rLat = e.lat;
+            const rLng = e.lon;
+            let distInfo = null;
+
             if (lat && lng) {
-                const dist = calcularDistancia(parseFloat(lat), parseFloat(lng), lugar.lat, lugar.lng);
-                distancia_info = calcularTiempos(dist);
+                const d = calcularDistancia(parseFloat(lat), parseFloat(lng), rLat, rLng);
+                distInfo = calcularTiempos(d);
             }
-            return { ...lugar, distancia_info };
+
+            return {
+                id: e.id || index + 100,
+                nombre: e.tags.name || "Restaurante Cali",
+                categoria: e.tags.amenity === 'cafe' ? 'Café' : 'Restaurante',
+                precio: e.tags.price || "$$",
+                rating: 4.0 + (Math.random() * 1), // Rating simulado para OSM
+                descripcion: e.tags.cuisine ? `Cocina: ${e.tags.cuisine}` : "Restaurante típico en Cali.",
+                imagen_url: `https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?sig=${e.id}`,
+                lat: rLat,
+                lng: rLng,
+                distancia_info: distInfo
+            };
         });
-        res.json(results);
-    } catch (err) { res.status(500).json({ error: "Error" }); }
+
+        // Fallback si OSM no devuelve nada
+        if (restaurantes.length === 0) {
+            restaurantes = [
+                { id: 1, nombre: "Restaurante Granada", categoria: "Restaurante", rating: 4.8, lat: 3.4516, lng: -76.5320 },
+                { id: 2, nombre: "Sabor Caleño", categoria: "Típico", rating: 4.5, lat: 3.4480, lng: -76.5350 }
+            ];
+        }
+
+        res.json(restaurantes);
+    } catch (error) {
+        console.error("Error OSM:", error.message);
+        res.json([
+            { id: 99, nombre: "Restaurante Fallback", categoria: "Local", rating: 4.0, lat: 3.44, lng: -76.52 }
+        ]);
+    }
 });
 
 app.get('/api/lugares/cercanos', async (req, res) => {
-    const { lat, lng } = req.query;
-    if (!lat || !lng) return res.status(400).json({ error: "Lat y lng requeridos" });
-    try {
-        const { rows } = await pool.query('SELECT * FROM lugares');
-        const results = rows.map(lugar => {
-            const dist = calcularDistancia(parseFloat(lat), parseFloat(lng), lugar.lat, lugar.lng);
-            return { ...lugar, distancia_info: calcularTiempos(dist) };
-        }).filter(l => l.distancia_info.distancia_km <= 5)
-          .sort((a, b) => a.distancia_info.distancia_km - b.distancia_info.distancia_km);
-        res.json(results);
-    } catch (err) { res.status(500).json({ error: "Error" }); }
-});
-
-app.get('/api/lugares/google-cercanos', async (req, res) => {
-    const { lat, lng } = req.query;
-    const API_KEY = process.env.GOOGLE_PLACES_API_KEY;
-    if (!lat || !lng) return res.status(400).json({ error: "Lat y lng requeridos" });
-    if (!API_KEY) return res.status(500).json({ error: "API Key no configurada" });
-    try {
-        const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=2000&key=${API_KEY}`;
-        const response = await axios.get(url);
-        const places = response.data.results.map(p => {
-            const dist = calcularDistancia(parseFloat(lat), parseFloat(lng), p.geometry.location.lat, p.geometry.location.lng);
-            return {
-                id: p.place_id,
-                nombre: p.name,
-                categoria: p.types[0],
-                rating: p.rating || 0,
-                lat: p.geometry.location.lat,
-                lng: p.geometry.location.lng,
-                imagenUrl: p.photos
-                    ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${p.photos[0].photo_reference}&key=${API_KEY}`
-                    : 'https://via.placeholder.com/400',
-                distancia_info: calcularTiempos(dist),
-                esGoogle: true
-            };
-        });
-        res.json(places);
-    } catch (err) { res.status(500).json({ error: "Error Google Places" }); }
-});
-
-app.get('/api/lugares/:id', async (req, res) => {
-    const { id } = req.params;
-    try {
-        const lugar = await pool.query('SELECT * FROM lugares WHERE id = $1', [id]);
-        if (lugar.rows.length === 0) return res.status(404).json({ error: "No encontrado" });
-        const resenas = await pool.query(
-            'SELECT r.id, r.comentario, r.rating, r.fecha, u.nombre as usuario_nombre, u.id as usuario_id FROM resenas r JOIN usuarios u ON r.usuario_id = u.id WHERE r.lugar_id = $1 ORDER BY r.fecha DESC',
-            [id]
-        );
-        res.json({ ...lugar.rows[0], resenas: resenas.rows });
-    } catch (err) { res.status(500).json({ error: "Error" }); }
-});
-
-// --- RESEÑAS ---
-app.post('/api/resenas', authenticateToken, async (req, res) => {
-    const { lugar_id, comentario, rating } = req.body;
-    try {
-        const result = await pool.query(
-            'INSERT INTO resenas (lugar_id, usuario_id, comentario, rating) VALUES ($1, $2, $3, $4) RETURNING *',
-            [lugar_id, req.user.userId, comentario, rating || 5]
-        );
-        res.status(201).json({ message: "Reseña guardada", resena: result.rows[0] });
-    } catch (err) { res.status(500).json({ error: "Error" }); }
-});
-
-// --- FAVORITOS ---
-app.get('/api/favoritos', authenticateToken, async (req, res) => {
-    try {
-        const { rows } = await pool.query(
-            'SELECT l.* FROM lugares l JOIN favoritos f ON l.id = f.lugar_id WHERE f.usuario_id = $1',
-            [req.user.userId]
-        );
-        res.json(rows);
-    } catch (err) { res.status(500).json({ error: "Error" }); }
-});
-
-app.post('/api/favoritos/toggle', authenticateToken, async (req, res) => {
-    const { lugar_id } = req.body;
-    try {
-        const exist = await pool.query('SELECT * FROM favoritos WHERE usuario_id = $1 AND lugar_id = $2', [req.user.userId, lugar_id]);
-        if (exist.rows.length > 0) {
-            await pool.query('DELETE FROM favoritos WHERE usuario_id = $1 AND lugar_id = $2', [req.user.userId, lugar_id]);
-            return res.json({ favorito: false });
-        }
-        await pool.query('INSERT INTO favoritos (usuario_id, lugar_id) VALUES ($1, $2)', [req.user.userId, lugar_id]);
-        res.json({ favorito: true });
-    } catch (err) { res.status(500).json({ error: "Error" }); }
-});
-
-app.get('/api/usuarios/perfil', authenticateToken, async (req, res) => {
-    try {
-        const { rows } = await pool.query('SELECT id, nombre, email, foto_url, creado_en FROM usuarios WHERE id = $1', [req.user.userId]);
-        res.json(rows[0]);
-    } catch (err) { res.status(500).json({ error: "Error" }); }
+    // Reutilizamos la lógica de lugares para simplificar
+    return app._router.handle({ method: 'get', url: '/api/lugares', query: req.query }, res);
 });
 
 app.listen(PORT, () => console.log(`🚀 Servidor en puerto ${PORT}`));
