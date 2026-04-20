@@ -64,17 +64,20 @@ const authenticateToken = (req, res, next) => {
 app.post('/api/auth/register', async (req, res) => {
     const { nombre, email, password } = req.body;
     try {
+        console.log(`Intentando registrar usuario: ${email}`);
         const hashedPassword = await bcrypt.hash(password, 10);
         const result = await pool.query(
             'INSERT INTO usuarios (nombre, email, password) VALUES ($1, $2, $3) RETURNING id',
             [nombre, email, hashedPassword]
         );
+        console.log(`✅ Usuario registrado con ID: ${result.rows[0].id}`);
         res.status(201).json({ message: "Usuario creado", userId: result.rows[0].id });
     } catch (err) {
+        console.error('❌ Error detallado en Registro:', err);
         if (err.code === '23505') {
             return res.status(400).json({ error: "Email ya registrado" });
         }
-        res.status(500).json({ error: "Error en el servidor" });
+        res.status(500).json({ error: "Error en el servidor", detail: err.message });
     }
 });
 
