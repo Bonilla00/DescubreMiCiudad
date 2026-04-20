@@ -7,10 +7,12 @@ import '../models/place_model.dart';
 class LugaresService {
   Future<List<Place>> getLugares({double? lat, double? lng}) async {
     try {
-      String url = ApiConstants.places;
-      if (lat != null && lng != null) {
-        url += '?lat=$lat&lng=$lng';
-      }
+      // Coordenadas por defecto (Cali, CO) si no se proveen, para evitar errores de cálculo en el servidor
+      final queryLat = lat ?? 3.4516;
+      final queryLng = lng ?? -76.5320;
+      
+      final url = '${ApiConstants.places}?lat=$queryLat&lng=$queryLng';
+
       final response = await http.get(Uri.parse(url)).timeout(ApiConstants.timeout);
       if (response.statusCode == 200) {
         List<dynamic> body = jsonDecode(response.body);
