@@ -43,12 +43,15 @@ const runMigrations = async () => {
             console.log('✅ Usuario admin creado.');
         } else {
             await pool.query(
-                'UPDATE usuarios SET password = $1 WHERE email = $2',
-                [hashedAdminPass, 'admin@admin.com']
+                'UPDATE usuarios SET password = $1, nombre = $2 WHERE email = $3',
+                [hashedAdminPass, 'Administrador', 'admin@admin.com']
             );
+            console.log('✅ Contraseña de admin actualizada.');
         }
 
         console.log('✅ Base de datos lista.');
+
+        // Cargar lugares si está vacío
         const { rows } = await pool.query("SELECT COUNT(*) FROM lugares");
         if (parseInt(rows[0].count) === 0) {
             const seedSql = `
@@ -63,25 +66,6 @@ const runMigrations = async () => {
             await pool.query(seedSql);
         }
 
-        // Forzar usuario de prueba admin@admin.com / 123456
-        const hashedAdminPass = await bcrypt.hash('123456', 10);
-        const adminCheck = await pool.query('SELECT * FROM usuarios WHERE email = $1', ['admin@admin.com']);
-
-        if (adminCheck.rows.length === 0) {
-            await pool.query(
-                'INSERT INTO usuarios (nombre, email, password) VALUES ($1, $2, $3)',
-                ['Administrador', 'admin@admin.com', hashedAdminPass]
-            );
-            console.log('✅ Usuario admin creado por primera vez.');
-        } else {
-            await pool.query(
-                'UPDATE usuarios SET password = $1, nombre = $2 WHERE email = $3',
-                [hashedAdminPass, 'Administrador', 'admin@admin.com']
-            );
-            console.log('✅ Contraseña de admin actualizada a 123456.');
-        }
-
-        console.log('✅ Base de datos verificada y actualizada.');
     } catch (err) {
         console.error('❌ Error en configuración de BD:', err);
     }
@@ -99,7 +83,7 @@ const authenticateToken = (req, res, next) => {
     });
 };
 
-// Rutas duplicadas para compatibilidad (con y sin /api)
+// Rutas
 app.post('/api/auth/register', handleRegister);
 app.post('/auth/register', handleRegister);
 app.post('/api/auth/login', handleLogin);
@@ -110,7 +94,6 @@ async function handleRegister(req, res) {
     if (!nombre || !email || !password) return res.status(400).json({ error: "Datos incompletos" });
     const cleanEmail = email.trim().toLowerCase();
     try {
-        console.log(`[AUTH] Intentando registrar: ${cleanEmail}`);
         const check = await pool.query('SELECT id FROM usuarios WHERE email = $1', [cleanEmail]);
         if (check.rows.length > 0) return res.status(400).json({ error: "Email ya registrado" });
         const hashedPassword = await bcrypt.hash(password, 10);
@@ -118,10 +101,8 @@ async function handleRegister(req, res) {
             'INSERT INTO usuarios (nombre, email, password) VALUES ($1, $2, $3) RETURNING id',
             [nombre.trim(), cleanEmail, hashedPassword]
         );
-        console.log(`[AUTH] ✅ Usuario creado ID: ${result.rows[0].id}`);
         res.status(201).json({ message: "OK", userId: result.rows[0].id });
     } catch (err) {
-        console.error("[AUTH] ❌ Error:", err.message);
         res.status(500).json({ error: err.message });
     }
 }
@@ -131,24 +112,14 @@ async function handleLogin(req, res) {
     if (!email || !password) return res.status(400).json({ error: "Faltan datos" });
     const cleanEmail = email.trim().toLowerCase();
     try {
-        console.log(`[AUTH] Intento login: ${cleanEmail}`);
         const { rows } = await pool.query('SELECT * FROM usuarios WHERE email = $1', [cleanEmail]);
         if (rows.length === 0) return res.status(401).json({ error: "No existe" });
-
         const valid = await bcrypt.compare(password, rows[0].password);
         if (!valid) return res.status(401).json({ error: "Password mal" });
-
         const token = jwt.sign({ userId: rows[0].id, nombre: rows[0].nombre }, JWT_SECRET, { expiresIn: '7d' });
-
-        // Fix Bug #3: No devolver la contraseña
         const { password: _, ...usuarioSeguro } = rows[0];
-
-        res.json({
-            token,
-            usuario: usuarioSeguro
-        });
+        res.json({ token, usuario: usuarioSeguro });
     } catch (err) {
-        console.error("[AUTH] ❌ Error login:", err.message);
         res.status(500).json({ error: err.message });
     }
 }
@@ -261,32 +232,6 @@ app.post('/api/resenas', authenticateToken, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error" }); }
 });
 
-app.put('/api/resenas/:id', authenticateToken, async (req, res) => {
-    const { comentario, rating } = req.body;
-    try {
-        const check = await pool.query('SELECT usuario_id FROM resenas WHERE id = $1', [req.params.id]);
-        if (check.rows.length === 0) return res.status(404).json({ error: "Reseña no encontrada" });
-        if (check.rows[0].usuario_id !== req.user.userId) return res.status(403).json({ error: "No autorizado" });
-
-        const result = await pool.query(
-            'UPDATE resenas SET comentario = COALESCE($1, comentario), rating = COALESCE($2, rating) WHERE id = $3 RETURNING *',
-            [comentario, rating, req.params.id]
-        );
-        res.json({ message: "Reseña actualizada", resena: result.rows[0] });
-    } catch (err) { res.status(500).json({ error: "Error" }); }
-});
-
-app.delete('/api/resenas/:id', authenticateToken, async (req, res) => {
-    try {
-        const check = await pool.query('SELECT usuario_id FROM resenas WHERE id = $1', [req.params.id]);
-        if (check.rows.length === 0) return res.status(404).json({ error: "No encontrada" });
-        if (check.rows[0].usuario_id !== req.user.userId) return res.status(403).json({ error: "No autorizado" });
-
-        await pool.query('DELETE FROM resenas WHERE id = $1', [req.params.id]);
-        res.json({ message: "Reseña eliminada" });
-    } catch (err) { res.status(500).json({ error: "Error" }); }
-});
-
 // --- FAVORITOS ---
 app.get('/api/favoritos', authenticateToken, async (req, res) => {
     try {
@@ -311,62 +256,11 @@ app.post('/api/favoritos/toggle', authenticateToken, async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error" }); }
 });
 
-app.get('/api/favoritos/check/:id', authenticateToken, async (req, res) => {
-    try {
-        const { rows } = await pool.query('SELECT * FROM favoritos WHERE usuario_id = $1 AND lugar_id = $2', [req.user.userId, req.params.id]);
-        res.json({ esFavorito: rows.length > 0 });
-    } catch (err) { res.status(500).json({ error: "Error" }); }
-});
-
-// --- USUARIOS ---
 app.get('/api/usuarios/perfil', authenticateToken, async (req, res) => {
     try {
         const { rows } = await pool.query('SELECT id, nombre, email, foto_url, creado_en FROM usuarios WHERE id = $1', [req.user.userId]);
         res.json(rows[0]);
     } catch (err) { res.status(500).json({ error: "Error" }); }
 });
-
-app.put('/api/usuarios/perfil', authenticateToken, async (req, res) => {
-    const { nombre, email, password_actual, password_nueva, foto_url } = req.body;
-    try {
-        const user = (await pool.query('SELECT * FROM usuarios WHERE id = $1', [req.user.userId])).rows[0];
-
-        if (password_nueva) {
-            if (!password_actual || !(await bcrypt.compare(password_actual, user.password))) {
-                return res.status(401).json({ error: "Contraseña actual incorrecta" });
-            }
-            const hash = await bcrypt.hash(password_nueva, 10);
-            await pool.query('UPDATE usuarios SET password = $1 WHERE id = $2', [hash, req.user.userId]);
-        }
-
-        const result = await pool.query(
-            'UPDATE usuarios SET nombre = COALESCE($1, nombre), email = COALESCE($2, email), foto_url = COALESCE($3, foto_url) WHERE id = $4 RETURNING id, nombre, email, foto_url',
-            [nombre, email, foto_url, req.user.userId]
-        );
-        res.json({ message: "Perfil actualizado", usuario: result.rows[0] });
-    } catch (err) { res.status(500).json({ error: "Error" }); }
-});
-
-app.get('/api/usuarios/estadisticas', authenticateToken, async (req, res) => {
-    try {
-        const resenas = await pool.query('SELECT COUNT(*) FROM resenas WHERE usuario_id = $1', [req.user.userId]);
-        const favoritos = await pool.query('SELECT COUNT(*) FROM favoritos WHERE usuario_id = $1', [req.user.userId]);
-        const user = await pool.query('SELECT creado_en FROM usuarios WHERE id = $1', [req.user.userId]);
-        res.json({
-            total_resenas: parseInt(resenas.rows[0].count),
-            total_favoritos: parseInt(favoritos.rows[0].count),
-            miembro_desde: user.rows[0].creado_en
-        });
-    } catch (err) { res.status(500).json({ error: "Error" }); }
-});
-
-app.get('/db-status', async (req, res) => {
-    try {
-        await pool.query('SELECT 1');
-        res.json({ status: "Online", database: "Connected" });
-    } catch (err) { res.status(500).json({ status: "Error", message: err.message }); }
-});
-
-app.get('/', (req, res) => res.json({ mensaje: "API de DescubreMiCiudad conectada a Postgres Online", status: "Online" }));
 
 app.listen(PORT, () => console.log(`🚀 Servidor en puerto ${PORT}`));
