@@ -46,15 +46,22 @@ const runMigrations = async () => {
             await pool.query(seedSql);
         }
 
-        // Insertar usuario de prueba admin@admin.com / 123456
+        // Forzar usuario de prueba admin@admin.com / 123456
+        const hashedAdminPass = await bcrypt.hash('123456', 10);
         const adminCheck = await pool.query('SELECT * FROM usuarios WHERE email = $1', ['admin@admin.com']);
+
         if (adminCheck.rows.length === 0) {
-            const hashedAdminPass = await bcrypt.hash('123456', 10);
             await pool.query(
                 'INSERT INTO usuarios (nombre, email, password) VALUES ($1, $2, $3)',
                 ['Administrador', 'admin@admin.com', hashedAdminPass]
             );
-            console.log('✅ Usuario de prueba admin@admin.com creado.');
+            console.log('✅ Usuario admin creado por primera vez.');
+        } else {
+            await pool.query(
+                'UPDATE usuarios SET password = $1, nombre = $2 WHERE email = $3',
+                [hashedAdminPass, 'Administrador', 'admin@admin.com']
+            );
+            console.log('✅ Contraseña de admin actualizada a 123456.');
         }
 
         console.log('✅ Base de datos verificada y actualizada.');
