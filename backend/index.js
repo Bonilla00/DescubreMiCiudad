@@ -67,18 +67,30 @@ const authenticateToken = (req, res, next) => {
 // --- AUTH ---
 app.post('/api/auth/register', async (req, res) => {
     const { nombre, email, password } = req.body;
+    console.log(`Intentando registrar usuario: ${email}`);
+
+    if (!nombre || !email || !password) {
+        return res.status(400).json({ error: "Todos los campos son obligatorios" });
+    }
+
     try {
         const check = await pool.query('SELECT id FROM usuarios WHERE email = $1', [email]);
-        if (check.rows.length > 0) return res.status(400).json({ error: "Email ya existe" });
+        if (check.rows.length > 0) {
+            console.log(`El email ya existe: ${email}`);
+            return res.status(400).json({ error: "El email ya está registrado" });
+        }
 
         const hashedPassword = await bcrypt.hash(password, 10);
         const result = await pool.query(
             'INSERT INTO usuarios (nombre, email, password) VALUES ($1, $2, $3) RETURNING id',
             [nombre, email, hashedPassword]
         );
+
+        console.log(`✅ Usuario creado con éxito. ID: ${result.rows[0].id}`);
         res.status(201).json({ message: "Usuario creado", userId: result.rows[0].id });
     } catch (err) {
-        res.status(500).json({ error: "Error en el servidor" });
+        console.error("❌ Error en registro:", err);
+        res.status(500).json({ error: "Error interno del servidor al registrar" });
     }
 });
 
