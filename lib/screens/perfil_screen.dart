@@ -31,7 +31,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
     
     try {
       final res = await http.get(
-        Uri.parse('$apiBaseUrl/api/usuarios/estadisticas'),
+        Uri.parse('${ApiConstants.baseUrl}/api/usuarios/estadisticas'),
         headers: {'Authorization': 'Bearer $token'},
       );
       if (res.statusCode == 200) setState(() => _stats = jsonDecode(res.body));

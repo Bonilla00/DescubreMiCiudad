@@ -1,18 +1,17 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:http/http.dart' as http;
 import '../constants/api.dart';
 import '../models/place_model.dart';
 
 class LugaresService {
-  final String baseUrl = apiBaseUrl; // Asumiendo que apiBaseUrl está definida en constants/api.dart
-
   Future<List<Place>> getLugares({double? lat, double? lng}) async {
     try {
-      String url = apiLugares;
+      String url = ApiConstants.places;
       if (lat != null && lng != null) {
         url += '?lat=$lat&lng=$lng';
       }
-      final response = await http.get(Uri.parse(url));
+      final response = await http.get(Uri.parse(url)).timeout(ApiConstants.timeout);
       if (response.statusCode == 200) {
         List<dynamic> body = jsonDecode(response.body);
         return body.map((item) => Place.fromJson(item)).toList();
@@ -25,8 +24,8 @@ class LugaresService {
 
   Future<List<Place>> getLugaresCercanos(double lat, double lng) async {
     try {
-      final url = '$apiLugares/cercanos?lat=$lat&lng=$lng';
-      final response = await http.get(Uri.parse(url));
+      final url = '${ApiConstants.places}/cercanos?lat=$lat&lng=$lng';
+      final response = await http.get(Uri.parse(url)).timeout(ApiConstants.timeout);
       if (response.statusCode == 200) {
         List<dynamic> body = jsonDecode(response.body);
         return body.map((item) => Place.fromJson(item)).toList();
@@ -39,8 +38,8 @@ class LugaresService {
 
   Future<List<Place>> getGoogleCercanos(double lat, double lng) async {
     try {
-      final url = '$apiLugares/google-cercanos?lat=$lat&lng=$lng';
-      final response = await http.get(Uri.parse(url));
+      final url = '${ApiConstants.places}/google-cercanos?lat=$lat&lng=$lng';
+      final response = await http.get(Uri.parse(url)).timeout(ApiConstants.timeout);
       if (response.statusCode == 200) {
         List<dynamic> body = jsonDecode(response.body);
         return body.map((item) => Place.fromJson(item)).toList();
@@ -53,7 +52,7 @@ class LugaresService {
 
   Future<List<Place>> buscarLugares({String? q, double? lat, double? lng}) async {
     try {
-      String url = '$apiLugares/buscar';
+      String url = '${ApiConstants.places}/buscar';
       List<String> params = [];
       if (q != null) params.add('q=$q');
       if (lat != null && lng != null) {
@@ -63,7 +62,7 @@ class LugaresService {
       if (params.isNotEmpty) {
         url += '?' + params.join('&');
       }
-      final response = await http.get(Uri.parse(url));
+      final response = await http.get(Uri.parse(url)).timeout(ApiConstants.timeout);
       if (response.statusCode == 200) {
         List<dynamic> body = jsonDecode(response.body);
         return body.map((item) => Place.fromJson(item)).toList();
@@ -76,7 +75,7 @@ class LugaresService {
 
   Future<Map<String, dynamic>?> getLugarById(int id) async {
     try {
-      final response = await http.get(Uri.parse('$apiLugares/$id'));
+      final response = await http.get(Uri.parse('${ApiConstants.places}/$id')).timeout(ApiConstants.timeout);
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       }
@@ -89,7 +88,7 @@ class LugaresService {
   Future<bool> agregarResenaConRating(int lugarId, String comentario, int rating, String token) async {
     try {
       final response = await http.post(
-        Uri.parse(apiResenas),
+        Uri.parse(ApiConstants.reviews),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -99,7 +98,7 @@ class LugaresService {
           'comentario': comentario,
           'rating': rating,
         }),
-      );
+      ).timeout(ApiConstants.timeout);
       return response.statusCode == 201;
     } catch (e) {
       print("Error agregarResena: $e");
@@ -110,7 +109,7 @@ class LugaresService {
   Future<bool> editarResena(int resenaId, String comentario, int rating, String token) async {
     try {
       final response = await http.put(
-        Uri.parse('$apiResenas/$resenaId'),
+        Uri.parse('${ApiConstants.reviews}/$resenaId'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -119,7 +118,7 @@ class LugaresService {
           'comentario': comentario,
           'rating': rating,
         }),
-      );
+      ).timeout(ApiConstants.timeout);
       return response.statusCode == 200;
     } catch (e) {
       print("Error editarResena: $e");
@@ -130,11 +129,11 @@ class LugaresService {
   Future<bool> eliminarResena(int resenaId, String token) async {
     try {
       final response = await http.delete(
-        Uri.parse('$apiResenas/$resenaId'),
+        Uri.parse('${ApiConstants.reviews}/$resenaId'),
         headers: {
           'Authorization': 'Bearer $token',
         },
-      );
+      ).timeout(ApiConstants.timeout);
       return response.statusCode == 200;
     } catch (e) {
       print("Error eliminarResena: $e");
