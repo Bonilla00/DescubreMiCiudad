@@ -11,15 +11,15 @@ class DistanciaInfo {
 
   factory DistanciaInfo.fromJson(Map<String, dynamic> json) {
     return DistanciaInfo(
-      distanciaKm: (json['distanciaKm'] as num).toDouble(),
-      tiempoCarroMin: (json['tiempoCarroMin'] as num).toInt(),
-      tiempoCaminandoMin: (json['tiempoCaminandoMin'] as num).toInt(),
+      distanciaKm: (json['distancia_km'] ?? json['distanciaKm'] ?? 0.0).toDouble(),
+      tiempoCarroMin: (json['tiempo_carro_min'] ?? json['tiempoCarroMin'] ?? 0).toInt(),
+      tiempoCaminandoMin: (json['tiempo_caminando_min'] ?? json['tiempoCaminandoMin'] ?? 0).toInt(),
     );
   }
 }
 
 class Place {
-  final dynamic id; // Puede ser int (local) o String (Google)
+  final dynamic id; 
   final String nombre;
   final String categoria;
   final String rangoPrecio;
@@ -52,18 +52,18 @@ class Place {
   factory Place.fromJson(Map<String, dynamic> json) {
     return Place(
       id: json['id'],
-      nombre: json['nombre'] ?? json['name'] ?? '',
+      nombre: json['nombre'] ?? json['name'] ?? 'Restaurante Cali',
       categoria: json['categoria'] ?? json['type'] ?? 'Lugar',
-      rangoPrecio: json['rangoPrecio'] ?? json['price_level']?.toString() ?? 'N/A',
-      descripcion: json['descripcion'] ?? '',
-      latitud: (json['latitud'] ?? json['lat'] ?? json['geometry']?['location']?['lat'] ?? 0.0).toDouble(),
-      longitud: (json['longitud'] ?? json['lng'] ?? json['geometry']?['location']?['lng'] ?? 0.0).toDouble(),
-      promedioCalificacion: (json['promedioCalificacion'] ?? json['rating'] ?? 0.0).toDouble(),
+      rangoPrecio: json['rangoPrecio'] ?? json['price_level']?.toString() ?? '$$',
+      descripcion: json['descripcion'] ?? 'Sin descripción disponible',
+      latitud: (json['latitud'] ?? json['lat'] ?? 0.0).toDouble(),
+      longitud: (json['longitud'] ?? json['lng'] ?? 0.0).toDouble(),
+      promedioCalificacion: (json['promedioCalificacion'] ?? json['rating'] ?? 4.0).toDouble(),
       totalResenas: json['totalResenas'] ?? json['user_ratings_total'] ?? 0,
-      imageUrl: json['imageUrl'] ?? json['imagen_url'] ?? (json['photos'] != null ? 'GOOGLE_IMAGE' : 'https://via.placeholder.com/150'),
+      imageUrl: json['imageUrl'] ?? json['imagen_url'] ?? 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4',
       direccion: json['direccion'] ?? json['vicinity'],
       distanciaInfo: json['distancia_info'] != null ? DistanciaInfo.fromJson(json['distancia_info']) : null,
-      esGooglePlace: json['place_id'] != null,
+      esGooglePlace: json['esGoogle'] ?? false,
     );
   }
 }
