@@ -27,6 +27,10 @@ const runMigrations = async () => {
     try {
         const initSql = fs.readFileSync(path.join(__dirname, 'src/migrations/init.sql'), 'utf8');
         await pool.query(initSql);
+
+        // Asegurar que exista la columna foto_url
+        await pool.query('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS foto_url TEXT');
+
         console.log('✅ Base de datos lista.');
     } catch (err) {
         console.error('❌ Error en configuración de BD:', err);
@@ -170,12 +174,32 @@ app.get('/api/lugares/:id', async (req, res) => {
 });
 
 // --- PERFIL DE USUARIO ---
-app.put('/api/usuarios/perfil', authenticateToken, async (req, res) => {
-    const { nombre, foto_url } = req.body;
+app.get('/api/usuarios/perfil', authenticateToken, async (req, res) => {
     try {
+        const { rows } = await pool.query('SELECT id, nombre, email, foto_url, creado_en FROM usuarios WHERE id = $1', [req.user.userId]);
+        if (rows.length === 0) return res.status(404).json({ error: "Usuario no encontrado" });
+        res.json(rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: "Error al obtener perfil" });
+    }
+});
+
+app.put('/api/usuarios/perfil', authenticateToken, async (req, res) => {
+    const { nombre, email, foto_url, password_actual, password_nueva } = req.body;
+    try {
+        // Si hay cambio de password, verificar la actual
+        if (password_nueva) {
+            const { rows } = await pool.query('SELECT password FROM usuarios WHERE id = $1', [req.user.userId]);
+            const valid = await bcrypt.compare(password_actual, rows[0].password);
+            if (!valid) return res.status(401).json({ error: "Contraseña actual incorrecta" });
+
+            const hashedNew = await bcrypt.hash(password_nueva, 10);
+            await pool.query('UPDATE usuarios SET password = $1 WHERE id = $2', [hashedNew, req.user.userId]);
+        }
+
         await pool.query(
-            'UPDATE usuarios SET nombre = $1, foto_url = $2 WHERE id = $3',
-            [nombre, foto_url, req.user.userId]
+            'UPDATE usuarios SET nombre = COALESCE($1, nombre), email = COALESCE($2, email), foto_url = COALESCE($3, foto_url) WHERE id = $4',
+            [nombre, email, foto_url, req.user.userId]
         );
         res.json({ message: "Perfil actualizado correctamente" });
     } catch (err) {
