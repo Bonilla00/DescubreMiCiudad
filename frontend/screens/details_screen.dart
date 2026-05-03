@@ -20,6 +20,7 @@ class DetailsScreen extends StatefulWidget {
 class _DetailsScreenState extends State<DetailsScreen> {
   final _lugaresService = LugaresService();
   final _favoritosService = FavoritosService();
+  late Place _place;
   bool _esFavorito = false;
   int? _myUserId;
   List<dynamic> _resenas = [];
@@ -28,6 +29,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
   @override
   void initState() {
     super.initState();
+    _place = widget.place;
     _initData();
   }
 
@@ -42,8 +44,8 @@ class _DetailsScreenState extends State<DetailsScreen> {
   }
 
   Future<void> _checkFavorito(String token) async {
-    if (token.isEmpty || widget.place.esGooglePlace) return;
-    final res = await _favoritosService.checkFavorito(widget.place.id as int, token);
+    if (token.isEmpty || _place.esGooglePlace) return;
+    final res = await _favoritosService.checkFavorito(_place.id as int, token);
     setState(() => _esFavorito = res);
   }
 
@@ -55,7 +57,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
       return;
     }
     
-    final nuevoEstado = await _favoritosService.toggleFavorito(widget.place.id as int, token);
+    final nuevoEstado = await _favoritosService.toggleFavorito(_place.id as int, token);
     setState(() => _esFavorito = nuevoEstado);
     
     ScaffoldMessenger.of(context).showSnackBar(
@@ -65,11 +67,12 @@ class _DetailsScreenState extends State<DetailsScreen> {
 
   Future<void> _cargarDetalles() async {
     try {
-      final response = await http.get(Uri.parse("${ApiConstants.apiBaseUrl}/lugares/${widget.place.id}"));
+      final response = await http.get(Uri.parse("${ApiConstants.apiBaseUrl}/lugares/${_place.id}"));
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         setState(() {
           _resenas = data['resenas'] ?? [];
+          _place = Place.fromJson(data);
           _isLoadingResenas = false;
         });
       }
@@ -79,47 +82,118 @@ class _DetailsScreenState extends State<DetailsScreen> {
   }
 
   Future<void> _openMap() async {
-    final url = Uri.parse("https://www.google.com/maps/search/?api=1&query=${widget.place.latitud},${widget.place.longitud}");
+    final url = Uri.parse("https://www.google.com/maps/search/?api=1&query=${_place.latitud},${_place.longitud}");
     if (await canLaunchUrl(url)) {
       await launchUrl(url);
     }
   }
 
-  void _showEditResena(dynamic resena) {
-    final commentController = TextEditingController(text: resena['comentario']);
-    double rating = (resena['rating'] ?? 5).toDouble();
+  void _showAddResena() {
+    final commentController = TextEditingController();
+    int rating = 5;
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom, left: 20, right: 20, top: 20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text("Editar Reseña", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 10),
-            TextField(controller: commentController, decoration: const InputDecoration(labelText: "Comentario")),
-            const SizedBox(height: 10),
-            Row(
-              children: List.generate(5, (i) => IconButton(
-                icon: Icon(Icons.star, color: i < rating ? Colors.amber : Colors.grey),
-                onPressed: () => rating = i + 1.0,
-              )),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final prefs = await SharedPreferences.getInstance();
-                final token = prefs.getString('token') ?? '';
-                await _lugaresService.editarResena(resena['id'], commentController.text, rating.toInt(), token);
-                Navigator.pop(ctx);
-                _cargarDetalles();
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Reseña actualizada"), backgroundColor: Colors.green));
-              },
-              child: const Text("Guardar"),
-            ),
-            const SizedBox(height: 20),
-          ],
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) => Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom, left: 20, right: 20, top: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text("Nueva Reseña", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              TextField(
+                controller: commentController,
+                decoration: const InputDecoration(labelText: "Comentario", border: OutlineInputBorder()),
+                maxLines: 3,
+              ),
+              const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(5, (i) => IconButton(
+                  icon: Icon(Icons.star, color: i < rating ? Colors.amber : Colors.grey, size: 30),
+                  onPressed: () => setModalState(() => rating = i + 1),
+                )),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () async {
+                    if (commentController.text.isEmpty) return;
+
+                    final prefs = await SharedPreferences.getInstance();
+                    final token = prefs.getString('token') ?? '';
+                    if (token.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Inicia sesión para calificar")));
+                      return;
+                    }
+
+                    final success = await _lugaresService.agregarResena(_place.id as int, commentController.text, rating, token);
+                    if (success) {
+                      Navigator.pop(ctx);
+                      _cargarDetalles();
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("¡Reseña guardada!"), backgroundColor: Colors.green));
+                    }
+                  },
+                  child: const Text("Publicar"),
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showEditResena(dynamic resena) {
+    final commentController = TextEditingController(text: resena['comentario']);
+    int rating = (resena['rating'] ?? 5).toInt();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) => Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom, left: 20, right: 20, top: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text("Editar Reseña", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              TextField(
+                controller: commentController,
+                decoration: const InputDecoration(labelText: "Comentario", border: OutlineInputBorder()),
+                maxLines: 3,
+              ),
+              const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(5, (i) => IconButton(
+                  icon: Icon(Icons.star, color: i < rating ? Colors.amber : Colors.grey, size: 30),
+                  onPressed: () => setModalState(() => rating = i + 1),
+                )),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () async {
+                    final prefs = await SharedPreferences.getInstance();
+                    final token = prefs.getString('token') ?? '';
+                    await _lugaresService.editarResena(resena['id'], commentController.text, rating, token);
+                    Navigator.pop(ctx);
+                    _cargarDetalles();
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Reseña actualizada"), backgroundColor: Colors.green));
+                  },
+                  child: const Text("Guardar"),
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+          ),
         ),
       ),
     );
@@ -148,7 +222,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final p = widget.place;
+    final p = _place;
     return Scaffold(
       appBar: AppBar(
         title: Text(p.nombre),
@@ -192,7 +266,18 @@ class _DetailsScreenState extends State<DetailsScreen> {
                     child: ElevatedButton.icon(onPressed: _openMap, icon: const Icon(Icons.map), label: const Text("CÓMO LLEGAR"), style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white)),
                   ),
                   const Divider(height: 40),
-                  const Text("Reseñas", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text("Reseñas", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                      if (!p.esGooglePlace)
+                        TextButton.icon(
+                          onPressed: _showAddResena,
+                          icon: const Icon(Icons.add_comment),
+                          label: const Text("Escribir reseña"),
+                        ),
+                    ],
+                  ),
                   if (_isLoadingResenas) const Center(child: CircularProgressIndicator()),
                   if (!_isLoadingResenas && _resenas.isEmpty) const Text("No hay reseñas aún."),
                   ..._resenas.map((r) => ListTile(

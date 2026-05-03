@@ -142,6 +142,33 @@ app.get('/api/lugares/cercanos', async (req, res) => {
     return app._router.handle({ method: 'get', url: '/api/lugares', query: req.query }, res);
 });
 
+app.get('/api/lugares/:id', async (req, res) => {
+    try {
+        const lugarRes = await pool.query('SELECT * FROM lugares WHERE id = $1', [req.params.id]);
+        if (lugarRes.rows.length === 0) return res.status(404).json({ error: "Lugar no encontrado" });
+
+        const resenasRes = await pool.query(
+            'SELECT r.*, u.nombre as usuario_nombre FROM resenas r JOIN usuarios u ON r.usuario_id = u.id WHERE r.lugar_id = $1 ORDER BY r.fecha DESC',
+            [req.params.id]
+        );
+
+        // Calcular promedio y total para que el frontend lo muestre correctamente
+        const totalResenas = resenasRes.rows.length;
+        const promedioCalificacion = totalResenas > 0
+            ? (resenasRes.rows.reduce((acc, r) => acc + r.rating, 0) / totalResenas).toFixed(1)
+            : lugarRes.rows[0].rating;
+
+        res.json({
+            ...lugarRes.rows[0],
+            promedioCalificacion: parseFloat(promedioCalificacion),
+            totalResenas: totalResenas,
+            resenas: resenasRes.rows
+        });
+    } catch (err) {
+        res.status(500).json({ error: "Error al obtener detalles" });
+    }
+});
+
 // --- PERFIL DE USUARIO ---
 app.put('/api/usuarios/perfil', authenticateToken, async (req, res) => {
     const { nombre, foto_url } = req.body;

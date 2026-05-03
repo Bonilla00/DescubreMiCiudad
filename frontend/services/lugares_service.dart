@@ -80,4 +80,20 @@ class LugaresService {
     );
     return response.statusCode == 200;
   }
+
+  Future<bool> agregarResena(int lugarId, String comentario, int rating, String token) async {
+    final response = await http.post(
+      Uri.parse("${ApiConstants.apiBaseUrl}/resenas"),
+      headers: {
+        "Authorization": "Bearer $token",
+        "Content-Type": "application/json"
+      },
+      body: jsonEncode({
+        "lugar_id": lugarId,
+        "comentario": comentario,
+        "rating": rating
+      }),
+    );
+    return response.statusCode == 200 || response.statusCode == 201;
+  }
 }

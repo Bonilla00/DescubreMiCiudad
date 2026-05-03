@@ -26,7 +26,8 @@ CREATE TABLE IF NOT EXISTS resenas (
   usuario_id INTEGER REFERENCES usuarios(id) ON DELETE CASCADE,
   comentario TEXT NOT NULL,
   rating INTEGER DEFAULT 5,
-  fecha TIMESTAMP DEFAULT NOW()
+  fecha TIMESTAMP DEFAULT NOW(),
+  UNIQUE(usuario_id, lugar_id)
 );
 
 CREATE TABLE IF NOT EXISTS favoritos (
