@@ -81,12 +81,15 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
   void _submitResena() async {
     if (_commentController.text.isEmpty) return;
     
-    final token = await _authService.getToken();
+    final user = await _authService.getCurrentUser();
+    final token = await user?.getIdToken();
+    if (token == null) return;
+
     final response = await _lugaresService.agregarResenaConRating(
       widget.place.id, 
       _commentController.text,
       _userRating.toInt(),
-      token!
+      token
     );
 
     if (response) {

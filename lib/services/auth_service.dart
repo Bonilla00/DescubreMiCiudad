@@ -1,119 +1,287 @@
-import 'dart:convert';
 import 'dart:async';
-import 'package:http/http.dart' as http;
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../constants/api.dart';
 
 class AuthService {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final GoogleSignIn _googleSignIn = GoogleSignIn();
+
+  // STREAM DE AUTENTICACIÓN (para mantener sesión)
+  Stream<User?> get authStateChanges => _auth.authStateChanges();
+
+  // REGISTRO CON EMAIL Y PASSWORD
   Future<Map<String, dynamic>> register(String nombre, String email, String password) async {
     try {
-      final response = await http.post(
-        Uri.parse(ApiConstants.register),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'nombre': nombre,
-          'email': email,
-          'password': password,
-        }),
-      ).timeout(ApiConstants.timeout);
-
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 201) {
-        return {'success': true, 'userId': data['userId']};
-      } else {
-        return {'success': false, 'error': data['error'] ?? 'Error al registrar'};
+      // Validaciones
+      if (email.isEmpty || !email.contains('@')) {
+        return {'success': false, 'error': 'Correo electrónico inválido'};
       }
-    } on TimeoutException {
-      return {'success': false, 'error': 'El servidor tarda mucho en responder. Reintenta.'};
+      if (password.length < 6) {
+        return {'success': false, 'error': 'La contraseña debe tener al menos 6 caracteres'};
+      }
+      if (nombre.isEmpty) {
+        return {'success': false, 'error': 'El nombre es requerido'};
+      }
+
+      // Crear usuario en Firebase
+      UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
+        email: email.trim(),
+        password: password.trim(),
+      );
+
+      // Actualizar nombre en Firebase
+      await userCredential.user?.updateDisplayName(nombre);
+
+      // Guardar en SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('nombre', nombre);
+      await prefs.setInt('userId', userCredential.user!.uid.hashCode);
+
+      return {
+        'success': true,
+        'userId': userCredential.user!.uid,
+        'nombre': nombre
+      };
+    } on FirebaseAuthException catch (e) {
+      return _handleFirebaseError(e);
     } catch (e) {
-      return {'success': false, 'error': 'Error de conexión: $e'};
+      return {'success': false, 'error': 'Error inesperado: $e'};
     }
   }
 
+  // INICIO DE SESIÓN CON EMAIL Y PASSWORD
   Future<Map<String, dynamic>> login(String email, String password) async {
     try {
-      final response = await http.post(
-        Uri.parse(ApiConstants.login),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'email': email,
-          'password': password,
-        }),
-      ).timeout(ApiConstants.timeout);
-
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 200) {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('token', data['token']);
-        await prefs.setString('nombre', data['usuario']['nombre']);
-        await prefs.setInt('userId', data['usuario']['id']); // Guardamos userId como int
-        return {'success': true, 'nombre': data['usuario']['nombre']};
-      } else {
-        return {'success': false, 'error': data['error'] ?? 'Credenciales incorrectas'};
+      if (email.isEmpty || !email.contains('@')) {
+        return {'success': false, 'error': 'Correo electrónico inválido'};
       }
-    } on TimeoutException {
-      return {'success': false, 'error': 'El servidor tarda mucho en responder.'};
+      if (password.isEmpty) {
+        return {'success': false, 'error': 'La contraseña es requerida'};
+      }
+
+      UserCredential userCredential = await _auth.signInWithEmailAndPassword(
+        email: email.trim(),
+        password: password.trim(),
+      );
+
+      // Guardar datos de sesión
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('nombre', userCredential.user?.displayName ?? 'Usuario');
+      await prefs.setInt('userId', userCredential.user!.uid.hashCode);
+
+      return {
+        'success': true,
+        'nombre': userCredential.user?.displayName ?? 'Usuario',
+        'userId': userCredential.user!.uid
+      };
+    } on FirebaseAuthException catch (e) {
+      return _handleFirebaseError(e);
     } catch (e) {
       return {'success': false, 'error': 'Error de conexión: $e'};
     }
   }
 
+  // INICIO DE SESIÓN CON GOOGLE
+  Future<Map<String, dynamic>> signInWithGoogle() async {
+    try {
+      // Disparar flujo de Google Sign-In
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      
+      if (googleUser == null) {
+        return {'success': false, 'error': 'Inicio de sesión cancelado'};
+      }
+
+      // Obtener detalles de autenticación
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+
+      // Crear credencial Firebase
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      // Iniciar sesión en Firebase
+      UserCredential userCredential = await _auth.signInWithCredential(credential);
+
+      // Guardar en SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('nombre', userCredential.user?.displayName ?? 'Usuario');
+      await prefs.setInt('userId', userCredential.user!.uid.hashCode);
+
+      return {
+        'success': true,
+        'nombre': userCredential.user?.displayName ?? 'Usuario',
+        'userId': userCredential.user!.uid
+      };
+    } on FirebaseAuthException catch (e) {
+      return _handleFirebaseError(e);
+    } catch (e) {
+      return {'success': false, 'error': 'Error Google Sign-In: $e'};
+    }
+  }
+
+  // CERRAR SESIÓN
   Future<void> logout() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
+    try {
+      await _auth.signOut();
+      await _googleSignIn.signOut();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
+    } catch (e) {
+      print('Error logout: $e');
+    }
   }
 
+  // VERIFICAR SI ESTÁ LOGUEADO
   Future<bool> isLoggedIn() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.containsKey('token');
+    User? user = _auth.currentUser;
+    return user != null;
   }
 
-  Future<String?> getToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('token');
+  // OBTENER USUARIO ACTUAL
+  Future<User?> getCurrentUser() async {
+    return _auth.currentUser;
   }
-  
+
+  // OBTENER NOMBRE
+  Future<String?> getToken() async {
+    final user = _auth.currentUser;
+    return await user?.getIdToken();
+  }
+
   Future<String?> getNombre() async {
+    User? user = _auth.currentUser;
+    if (user != null) {
+      return user.displayName ?? user.email?.split('@')[0];
+    }
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString('nombre');
   }
 
   Future<int?> getUserId() async {
+    User? user = _auth.currentUser;
+    return user?.uid.hashCode;
+  }
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getInt('userId');
+    return prefs.getString('nombre');
   }
 
-  Future<Map<String, dynamic>> getPerfil() async {
-    final token = await getToken();
+  // OBTENER USER ID
+  Future<String?> getUserId() async {
+    User? user = _auth.currentUser;
+    return user?.uid;
+  }
+
+  // OBTENER EMAIL
+  Future<String?> getEmail() async {
+    User? user = _auth.currentUser;
+    return user?.email;
+  }
+
+  // OBTENER URL FOTO PERFIL
+  Future<String?> getPhotoURL() async {
+    User? user = _auth.currentUser;
+    return user?.photoURL;
+  }
+
+  // ENVIAR CORREO DE VERIFICACIÓN
+  Future<bool> sendEmailVerification() async {
     try {
-      final response = await http.get(
-        Uri.parse(ApiConstants.profile),
-        headers: {'Authorization': 'Bearer $token'},
-      ).timeout(ApiConstants.timeout);
-      
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
+      User? user = _auth.currentUser;
+      if (user != null && !user.emailVerified) {
+        await user.sendEmailVerification();
+        return true;
       }
-      return {'error': 'Error al obtener perfil'};
+      return false;
     } catch (e) {
-      return {'error': 'Error de conexión: $e'};
+      print('Error sending verification: $e');
+      return false;
     }
   }
 
-  Future<Map<String, dynamic>> actualizarPerfil(Map<String, dynamic> datos) async {
-    final token = await getToken();
+  // RECARGAR USUARIO (para verificar email verificado)
+  Future<void> reloadUser() async {
+    await _auth.currentUser?.reload();
+  }
+
+  // MANEJO DE ERRORES DE FIREBASE
+  Map<String, dynamic> _handleFirebaseError(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'user-not-found':
+      case 'wrong-password':
+        return {'success': false, 'error': 'Credenciales incorrectas'};
+      case 'email-already-in-use':
+        return {'success': false, 'error': 'El correo ya está registrado'};
+      case 'invalid-email':
+        return {'success': false, 'error': 'Correo electrónico inválido'};
+      case 'weak-password':
+        return {'success': false, 'error': 'Contraseña muy débil (mínimo 6 caracteres)'};
+      case 'operation-not-allowed':
+        return {'success': false, 'error': 'Operación no permitida'};
+      case 'user-disabled':
+        return {'success': false, 'error': 'Usuario deshabilitado'};
+      case 'too-many-requests':
+        return {'success': false, 'error': 'Demasiados intentos. Intenta más tarde'};
+      case 'network-request-failed':
+        return {'success': false, 'error': 'Error de conexión. Verifica tu internet'};
+      case 'account-exists-with-different-credential':
+        return {'success': false, 'error': 'Ya existe una cuenta con este email usando otro método'};
+      default:
+        return {'success': false, 'error': 'Error: ${e.message}'};
+    }
+  }
+
+  // CAMBIAR CONTRASEÑA
+  Future<Map<String, dynamic>> changePassword(String currentPassword, String newPassword) async {
     try {
-      final response = await http.put(
-        Uri.parse(ApiConstants.profileUpdate),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode(datos),
-      ).timeout(ApiConstants.timeout);
-      return jsonDecode(response.body);
+      User? user = _auth.currentUser;
+      if (user == null) {
+        return {'success': false, 'error': 'No hay sesión activa'};
+      }
+
+      // Reautenticar
+      AuthCredential credential = EmailAuthProvider.credential(
+        email: user.email!,
+        password: currentPassword,
+      );
+      
+      await user.reauthenticateWithCredential(credential);
+      await user.updatePassword(newPassword);
+      
+      return {'success': true, 'message': 'Contraseña actualizada'};
+    } on FirebaseAuthException catch (e) {
+      return _handleFirebaseError(e);
     } catch (e) {
-      return {'error': 'Error de conexión: $e'};
+      return {'success': false, 'error': 'Error: $e'};
+    }
+  }
+
+  // ELIMINAR CUENTA
+  Future<Map<String, dynamic>> deleteAccount(String password) async {
+    try {
+      User? user = _auth.currentUser;
+      if (user == null) {
+        return {'success': false, 'error': 'No hay sesión activa'};
+      }
+
+      // Reautenticar
+      AuthCredential credential = EmailAuthProvider.credential(
+        email: user.email!,
+        password: password,
+      );
+      
+      await user.reauthenticateWithCredential(credential);
+      await user.delete();
+      
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
+      
+      return {'success': true, 'message': 'Cuenta eliminada'};
+    } on FirebaseAuthException catch (e) {
+      return _handleFirebaseError(e);
+    } catch (e) {
+      return {'success': false, 'error': 'Error: $e'};
     }
   }
 }

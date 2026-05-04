@@ -30,11 +30,13 @@ class AuthProvider with ChangeNotifier {
 
   Future<Map<String, dynamic>> login(String email, String password) async {
     try {
-      final response = await http.post(
-        Uri.parse(ApiConstants.login),
-        headers: {"Content-Type": "application/json"},
-        body: json.encode({"email": email, "password": password}),
-      ).timeout(ApiConstants.timeout);
+      final response = await http
+          .post(
+            Uri.parse(ApiConstants.login),
+            headers: {"Content-Type": "application/json"},
+            body: json.encode({"email": email, "password": password}),
+          )
+          .timeout(ApiConstants.timeout);
 
       final data = json.decode(response.body);
 
@@ -52,36 +54,50 @@ class AuthProvider with ChangeNotifier {
         notifyListeners();
         return {"success": true};
       } else {
-        return {"success": false, "message": data['error'] ?? "Credenciales incorrectas"};
+        return {
+          "success": false,
+          "message": data['error'] ?? "Credenciales incorrectas"
+        };
       }
     } catch (e) {
       return {"success": false, "message": "Error de conexión: $e"};
     }
   }
 
-  Future<Map<String, dynamic>> register(String nombre, String email, String password) async {
+  Future<Map<String, dynamic>> register(
+      String nombre, String email, String password) async {
     try {
-      final response = await http.post(
-        Uri.parse(ApiConstants.register),
-        headers: {"Content-Type": "application/json"},
-        body: json.encode({
-          "nombre": nombre.trim(),
-          "email": email.trim().toLowerCase(),
-          "password": password.trim()
-        }),
-      ).timeout(ApiConstants.timeout);
+      final response = await http
+          .post(
+            Uri.parse(ApiConstants.register),
+            headers: {"Content-Type": "application/json"},
+            body: json.encode({
+              "nombre": nombre.trim(),
+              "email": email.trim().toLowerCase(),
+              "password": password.trim()
+            }),
+          )
+          .timeout(ApiConstants.timeout);
 
       final data = json.decode(response.body);
 
       if (response.statusCode == 201) {
-        // En lugar de hacer login automático, devolvemos éxito directo
-        // para asegurar que el registro se completó en la base de datos.
-        return {"success": true, "message": "Usuario creado con éxito. Ya puedes iniciar sesión."};
+        return {
+          "success": true,
+          "message": "Usuario creado exitosamente. Ya puedes iniciar sesión."
+        };
       } else {
-        return {"success": false, "message": data['error'] ?? "Error en el servidor"};
+        // El backend devuelve { error: "mensaje" }, convertir a { message: "mensaje" }
+        return {
+          "success": false,
+          "message": data['error'] ?? "Error al registrar. Intenta de nuevo."
+        };
       }
     } catch (e) {
-      return {"success": false, "message": "Error de conexión: Reintenta en un momento"};
+      return {
+        "success": false,
+        "message": "Error de conexión: Verifica tu conexión a internet"
+      };
     }
   }
 
@@ -90,7 +106,7 @@ class AuthProvider with ChangeNotifier {
     _userName = null;
     _userId = null;
     _token = null;
-    
+
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
 

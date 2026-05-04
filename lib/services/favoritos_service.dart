@@ -1,22 +1,30 @@
 import 'dart:convert';
 import 'dart:async';
 import 'package:http/http.dart' as http;
-import 'auth_service.dart';
 import '../constants/api.dart';
 import '../models/place_model.dart';
+import 'auth_service.dart';
 
 class FavoritosService {
   final AuthService _authService = AuthService();
 
+  // Helper para obtener headers con token de Firebase
+  Future<Map<String, String>> _getHeaders() async {
+    final user = await _authService.getCurrentUser();
+    final token = user?.getIdToken();
+    
+    return {
+      'Content-Type': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
+    };
+  }
+
   Future<List<Place>> getFavoritos() async {
-    final token = await _authService.getToken();
     try {
+      final headers = await _getHeaders();
       final response = await http.get(
         Uri.parse(ApiConstants.favorites),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
+        headers: headers,
       ).timeout(ApiConstants.timeout);
       
       if (response.statusCode == 200) {
@@ -30,20 +38,17 @@ class FavoritosService {
   }
 
   Future<bool> toggleFavorito(int lugarId) async {
-    final token = await _authService.getToken();
     try {
+      final headers = await _getHeaders();
       final response = await http.post(
         Uri.parse(ApiConstants.favorites),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
+        headers: headers,
         body: jsonEncode({'lugar_id': lugarId}),
       ).timeout(ApiConstants.timeout);
       
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        return data['favorito'];
+        return data['favorito'] ?? false;
       }
     } catch (e) {
       print("Error toggleFavorito: $e");
@@ -52,14 +57,11 @@ class FavoritosService {
   }
 
   Future<bool> checkFavorito(int lugarId) async {
-    final token = await _authService.getToken();
     try {
+      final headers = await _getHeaders();
       final response = await http.get(
         Uri.parse('${ApiConstants.favorites}/check/$lugarId'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
+        headers: headers,
       ).timeout(ApiConstants.timeout);
       
       if (response.statusCode == 200) {

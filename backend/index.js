@@ -52,16 +52,47 @@ const authenticateToken = (req, res, next) => {
 // --- AUTH ---
 app.post('/api/auth/register', async (req, res) => {
     let { nombre, email, password } = req.body;
-    if (!nombre || !email || !password) return res.status(400).json({ error: "Datos incompletos" });
+    
+    // Validar campos requeridos
+    if (!nombre || !email || !password) {
+        return res.status(400).json({ error: "Nombre, email y contraseña son requeridos" });
+    }
+    
     const cleanEmail = email.trim().toLowerCase();
+    
+    // Validar formato de email
+    const emailRegex = /^[\w\.-]+@[\w\.-]+\.\w+$/;
+    if (!emailRegex.test(cleanEmail)) {
+        return res.status(400).json({ error: "Formato de email inválido" });
+    }
+    
+    // Validar longitud de contraseña
+    if (password.trim().length < 6) {
+        return res.status(400).json({ error: "La contraseña debe tener mínimo 6 caracteres" });
+    }
+    
     try {
-        const hashedPassword = await bcrypt.hash(password, 10);
+        const hashedPassword = await bcrypt.hash(password.trim(), 10);
         const result = await pool.query(
-            'INSERT INTO usuarios (nombre, email, password) VALUES ($1, $2, $3) RETURNING id',
+            'INSERT INTO usuarios (nombre, email, password) VALUES ($1, $2, $3) RETURNING id, nombre, email',
             [nombre.trim(), cleanEmail, hashedPassword]
         );
-        res.status(201).json({ message: "OK", userId: result.rows[0].id });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+        res.status(201).json({ 
+            message: "Usuario creado exitosamente", 
+            userId: result.rows[0].id,
+            usuario: result.rows[0]
+        });
+    } catch (err) {
+        // Manejo específico de errores de PostgreSQL
+        if (err.code === '23505') { // Constraint violation (duplicate key)
+            res.status(400).json({ error: "Este email ya está registrado" });
+        } else if (err.code === '23502') { // Not null violation
+            res.status(400).json({ error: "Todos los campos son requeridos" });
+        } else {
+            console.error('Error en registro:', err);
+            res.status(500).json({ error: "Error al registrar usuario. Intenta más tarde." });
+        }
+    }
 });
 
 app.post('/api/auth/login', async (req, res) => {
