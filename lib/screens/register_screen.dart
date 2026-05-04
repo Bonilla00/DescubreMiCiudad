@@ -173,7 +173,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // LOGO
                   Container(
                     height: 80,
                     width: 80,
@@ -188,8 +187,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                   ),
                   const SizedBox(height: 24),
-
-                  // TÍTULO
                   const Text(
                     'Crear Cuenta',
                     style: TextStyle(
@@ -209,78 +206,164 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 40),
-
-                  // CAMPO NOMBRE
                   TextFormField(
                     controller: _nombreController,
                     textCapitalization: TextCapitalization.words,
-                    autofillHints: const [AutofillHints.name],
-                    decoration: _inputDecoration(
-                      icon: Icons.person_outline,
-                      hint: 'Tu nombre',
-                      label: 'Nombre completo',
+                    decoration: InputDecoration(
+                      labelText: 'Nombre completo',
+                      hintText: 'Tu nombre',
+                      prefixIcon: const Icon(Icons.person_outline, color: Color(0xFF1A73E8)),
+                      filled: true,
+                      fillColor: Colors.grey[50],
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey[200]!),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFF1A73E8), width: 2),
+                      ),
+                      errorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.red, width: 1),
+                      ),
+                      focusedErrorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.red, width: 2),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                     ),
                     validator: _validateName,
                     enabled: !_isLoading,
                   ),
                   const SizedBox(height: 16),
-
-                  // CAMPO EMAIL
                   TextFormField(
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
-                    autofillHints: const [AutofillHints.email],
-                    decoration: _inputDecoration(
-                      icon: Icons.email_outlined,
-                      hint: 'correo@ejemplo.com',
-                      label: 'Correo electrónico',
+                    decoration: InputDecoration(
+                      labelText: 'Correo electrónico',
+                      hintText: 'correo@ejemplo.com',
+                      prefixIcon: const Icon(Icons.email_outlined, color: Color(0xFF1A73E8)),
+                      filled: true,
+                      fillColor: Colors.grey[50],
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey[200]!),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFF1A73E8), width: 2),
+                      ),
+                      errorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.red, width: 1),
+                      ),
+                      focusedErrorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.red, width: 2),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                     ),
                     validator: _validateEmail,
                     enabled: !_isLoading,
                   ),
                   const SizedBox(height: 16),
-
-                  // CAMPO CONTRASEÑA
                   TextFormField(
                     controller: _passwordController,
                     obscureText: _obscurePassword,
-                    autofillHints: const [AutofillHints.newPassword],
-                    decoration: _inputDecoration(
-                      icon: Icons.lock_outline,
-                      hint: '••••••••',
-                      label: 'Contraseña',
-                      isPassword: true,
-                      onToggleVisibility: () {
-                        setState(() => _obscurePassword = !_obscurePassword);
-                      },
-                      obscureText: _obscurePassword,
+                    decoration: InputDecoration(
+                      labelText: 'Contraseña',
+                      hintText: '••••••••',
+                      prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFF1A73E8)),
+                      filled: true,
+                      fillColor: Colors.grey[50],
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey[200]!),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFF1A73E8), width: 2),
+                      ),
+                      errorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.red, width: 1),
+                      ),
+                      focusedErrorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.red, width: 2),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                          color: Colors.grey,
+                        ),
+                        onPressed: () {
+                          setState(() => _obscurePassword = !_obscurePassword);
+                        },
+                      ),
                     ),
                     validator: _validatePassword,
                     enabled: !_isLoading,
                   ),
                   const SizedBox(height: 16),
-
-                  // CAMPO CONFIRMAR CONTRASEÑA
                   TextFormField(
                     controller: _confirmPasswordController,
                     obscureText: _obscureConfirmPassword,
-                    autofillHints: const [AutofillHints.newPassword],
-                    decoration: _inputDecoration(
-                      icon: Icons.lock_outline,
-                      hint: '••••••••',
-                      label: 'Confirmar contraseña',
-                      isPassword: true,
-                      onToggleVisibility: () {
-                        setState(() => _obscureConfirmPassword = !_obscureConfirmPassword);
-                      },
-                      obscureText: _obscureConfirmPassword,
+                    decoration: InputDecoration(
+                      labelText: 'Confirmar contraseña',
+                      hintText: '••••••••',
+                      prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFF1A73E8)),
+                      filled: true,
+                      fillColor: Colors.grey[50],
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey[200]!),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFF1A73E8), width: 2),
+                      ),
+                      errorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.red, width: 1),
+                      ),
+                      focusedErrorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.red, width: 2),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
+                          color: Colors.grey,
+                        ),
+                        onPressed: () {
+                          setState(() => _obscureConfirmPassword = !_obscureConfirmPassword);
+                        },
+                      ),
                     ),
                     validator: _validateConfirmPassword,
                     enabled: !_isLoading,
                   ),
                   const SizedBox(height: 16),
-
-                  // CHECKBOX TÉRMINOS
                   Row(
                     children: [
                       Checkbox(
@@ -321,8 +404,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ],
                   ),
                   const SizedBox(height: 24),
-
-                  // BOTÓN REGISTRAR
                   FilledButton(
                     onPressed: _isLoading ? null : _register,
                     style: FilledButton.styleFrom(
@@ -348,25 +429,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                           ),
                   ),
-                  const SizedBox(height: 16),
-
-                  // DIVISOR
-                  Row(
-                    children: [
-                      const Expanded(child: Divider()),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Text(
-                          'O regístrate con',
-                          style: TextStyle(color: Colors.grey[600], fontSize: 14),
-                        ),
-                      ),
-                      const Expanded(child: Divider()),
-                    ],
-                   ),
-                   const SizedBox(height: 32),
-
-                   // LINK LOGIN
+                  const SizedBox(height: 32),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -392,53 +455,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
         ),
       ),
-    );
-  }
-
-  InputDecoration _inputDecoration({
-    required IconData icon,
-    required String hint,
-    required String label,
-    bool isPassword = false,
-    bool obscureText = false,
-    VoidCallback? onToggleVisibility,
-  }) {
-    return InputDecoration(
-      labelText: label,
-      hintText: hint,
-      prefixIcon: Icon(icon, color: const Color(0xFF1A73E8)),
-      filled: true,
-      fillColor: Colors.grey[50],
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide.none,
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.grey[200]!),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Color(0xFF1A73E8), width: 2),
-      ),
-      errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Colors.red, width: 1),
-      ),
-      focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Colors.red, width: 2),
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      suffixIcon: isPassword
-          ? IconButton(
-              icon: Icon(
-                obscureText ? Icons.visibility_off : Icons.visibility,
-                color: Colors.grey,
-              ),
-              onPressed: onToggleVisibility,
-            )
-          : null,
     );
   }
 }

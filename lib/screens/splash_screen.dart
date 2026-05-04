@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import '../services/auth_service.dart';
 import 'home_screen.dart';
 import 'login_screen.dart';
 import 'onboarding_screen.dart';
@@ -13,7 +13,7 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final AuthService _authService = AuthService();
 
   @override
   void initState() {
@@ -22,24 +22,19 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _navigateToNext() async {
-    // Esperar mínimo 2 segundos para el splash
     await Future.delayed(const Duration(seconds: 2));
 
     if (!mounted) return;
 
-    // Verificar onboarding
-    final prefs = await SharedPreferences.getInstance();
-    final onboardingDone = prefs.getBool('onboarding_done') ?? false;
-
-    // Verificar si hay usuario autenticado
-    User? currentUser = _auth.currentUser;
+    final onboardingDone = await _isOnboardingDone();
+    final isLoggedIn = await _authService.isLoggedIn();
 
     if (!onboardingDone) {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const OnboardingScreen()),
       );
-    } else if (currentUser != null) {
+    } else if (isLoggedIn) {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const HomeScreen()),
@@ -52,6 +47,11 @@ class _SplashScreenState extends State<SplashScreen> {
     }
   }
 
+  Future<bool> _isOnboardingDone() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('onboarding_done') ?? false;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -60,7 +60,6 @@ class _SplashScreenState extends State<SplashScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // LOGO ANIMADO
             TweenAnimationBuilder<double>(
               tween: Tween(begin: 0.0, end: 1.0),
               duration: const Duration(seconds: 2),
@@ -85,8 +84,6 @@ class _SplashScreenState extends State<SplashScreen> {
               ),
             ),
             const SizedBox(height: 32),
-            
-            // TÍTULO
             const Text(
               "Descubre Mi Ciudad",
               style: TextStyle(
@@ -105,8 +102,6 @@ class _SplashScreenState extends State<SplashScreen> {
               ),
             ),
             const SizedBox(height: 48),
-            
-            // INDICADOR DE CARGA
             const CircularProgressIndicator(
               valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
               strokeWidth: 3,

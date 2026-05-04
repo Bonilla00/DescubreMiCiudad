@@ -8,11 +8,8 @@ import 'auth_service.dart';
 class FavoritosService {
   final AuthService _authService = AuthService();
 
-  // Helper para obtener headers con token de Firebase
   Future<Map<String, String>> _getHeaders() async {
-    final user = await _authService.getCurrentUser();
-    final token = user?.getIdToken();
-    
+    final token = await _authService.getToken();
     return {
       'Content-Type': 'application/json',
       if (token != null) 'Authorization': 'Bearer $token',

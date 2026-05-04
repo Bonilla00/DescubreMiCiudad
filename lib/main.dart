@@ -1,14 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'screens/splash_screen.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  
-  // Inicializar Firebase
-  await Firebase.initializeApp();
-  
+void main() {
   runApp(const MyApp());
 }
 

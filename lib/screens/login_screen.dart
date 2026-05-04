@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../services/auth_service.dart';
+import 'home_screen.dart';
+import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -113,7 +114,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // LOGO
                   Container(
                     height: 100,
                     width: 100,
@@ -128,8 +128,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 32),
-
-                  // TÍTULO
                   const Text(
                     'Bienvenido',
                     style: TextStyle(
@@ -149,59 +147,85 @@ class _LoginScreenState extends State<LoginScreen> {
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 48),
-
-                  // CAMPO EMAIL
                   TextFormField(
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
-                    autofillHints: const [AutofillHints.email],
-                    decoration: _inputDecoration(
-                      icon: Icons.email_outlined,
-                      hint: 'correo@ejemplo.com',
-                      label: 'Correo electrónico',
+                    decoration: InputDecoration(
+                      labelText: 'Correo electrónico',
+                      hintText: 'correo@ejemplo.com',
+                      prefixIcon: const Icon(Icons.email_outlined, color: Color(0xFF1A73E8)),
+                      filled: true,
+                      fillColor: Colors.grey[50],
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey[200]!),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFF1A73E8), width: 2),
+                      ),
+                      errorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.red, width: 1),
+                      ),
+                      focusedErrorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.red, width: 2),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                     ),
                     validator: _validateEmail,
                     enabled: !_isLoading,
                   ),
                   const SizedBox(height: 16),
-
-                  // CAMPO CONTRASEÑA
                   TextFormField(
                     controller: _passwordController,
                     obscureText: _obscurePassword,
-                    autofillHints: const [AutofillHints.password],
-                    decoration: _inputDecoration(
-                      icon: Icons.lock_outline,
-                      hint: '••••••••',
-                      label: 'Contraseña',
-                      isPassword: true,
-                      onToggleVisibility: () {
-                        setState(() => _obscurePassword = !_obscurePassword);
-                      },
-                      obscureText: _obscurePassword,
+                    decoration: InputDecoration(
+                      labelText: 'Contraseña',
+                      hintText: '••••••••',
+                      prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFF1A73E8)),
+                      filled: true,
+                      fillColor: Colors.grey[50],
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey[200]!),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFF1A73E8), width: 2),
+                      ),
+                      errorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.red, width: 1),
+                      ),
+                      focusedErrorBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.red, width: 2),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                          color: Colors.grey,
+                        ),
+                        onPressed: () {
+                          setState(() => _obscurePassword = !_obscurePassword);
+                        },
+                      ),
                     ),
                     validator: _validatePassword,
                     enabled: !_isLoading,
                   ),
-                  const SizedBox(height: 8),
-
-                  // LINK "OLVIDÉ MI CONTRASEÑA"
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: _isLoading ? null : () {
-                        // TODO: Implementar recuperación de contraseña con Firebase
-                        _showErrorDialog('Función no disponible aún');
-                      },
-                      child: const Text(
-                        '¿Olvidaste tu contraseña?',
-                        style: TextStyle(color: Color(0xFF1A73E8), fontSize: 14),
-                      ),
-                    ),
-                  ),
                   const SizedBox(height: 24),
-
-                  // BOTÓN INICIAR SESIÓN
                   FilledButton(
                     onPressed: _isLoading ? null : _login,
                     style: FilledButton.styleFrom(
@@ -226,10 +250,8 @@ class _LoginScreenState extends State<LoginScreen> {
                             'Iniciar Sesión',
                             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                           ),
-                   ),
-                   const SizedBox(height: 32),
-
-                   // LINK REGISTRO
+                  ),
+                  const SizedBox(height: 16),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -255,53 +277,6 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
       ),
-    );
-  }
-
-  InputDecoration _inputDecoration({
-    required IconData icon,
-    required String hint,
-    required String label,
-    bool isPassword = false,
-    bool obscureText = false,
-    VoidCallback? onToggleVisibility,
-  }) {
-    return InputDecoration(
-      labelText: label,
-      hintText: hint,
-      prefixIcon: Icon(icon, color: const Color(0xFF1A73E8)),
-      filled: true,
-      fillColor: Colors.grey[50],
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide.none,
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.grey[200]!),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Color(0xFF1A73E8), width: 2),
-      ),
-      errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Colors.red, width: 1),
-      ),
-      focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Colors.red, width: 2),
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      suffixIcon: isPassword
-          ? IconButton(
-              icon: Icon(
-                obscureText ? Icons.visibility_off : Icons.visibility,
-                color: Colors.grey,
-              ),
-              onPressed: onToggleVisibility,
-            )
-          : null,
     );
   }
 }

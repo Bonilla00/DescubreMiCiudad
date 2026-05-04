@@ -8,10 +8,9 @@ import 'auth_service.dart';
 class LugaresService {
   final AuthService _authService = AuthService();
 
-  // Helper para obtener headers con token de Firebase
+  // Helper para obtener headers (sin token obligatorio)
   Future<Map<String, String>> _getHeaders() async {
-    final user = await _authService.getCurrentUser();
-    final token = user?.getIdToken(); // Token ID de Firebase
+    final token = await _authService.getToken();
     
     return {
       'Content-Type': 'application/json',
@@ -108,9 +107,12 @@ class LugaresService {
     return null;
   }
 
-  Future<bool> agregarResenaConRating(int lugarId, String comentario, int rating, String token) async {
+  Future<bool> agregarResenaConRating(int lugarId, String comentario, int rating, [String? token]) async {
     try {
-      final headers = await _getHeaders();
+      final headers = {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      };
       final response = await http.post(
         Uri.parse(ApiConstants.reviews),
         headers: headers,

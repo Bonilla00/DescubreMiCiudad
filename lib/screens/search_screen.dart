@@ -40,10 +40,10 @@ class _SearchScreenState extends State<SearchScreen> {
 
   Future<void> _initUbicacionYLoad() async {
     try {
-      Position? pos = await Geolocator.getCurrentPosition(timeLimit: const Duration(seconds: 5)).catchError((_) => null);
+      Position pos = await Geolocator.getCurrentPosition(timeLimit: const Duration(seconds: 5));
       _userLat = pos.latitude;
       _userLng = pos.longitude;
-        } catch (e) {
+    } catch (e) {
       debugPrint("Error ubicacion background: $e");
     }
     _loadAll();
