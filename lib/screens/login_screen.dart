@@ -17,7 +17,6 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
   
   final AuthService _authService = AuthService();
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
 
   @override
   void dispose() {
@@ -46,25 +45,6 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       } else {
         _showErrorDialog(result['error'] ?? 'Error desconocido');
-      }
-    }
-  }
-
-  Future<void> _loginWithGoogle() async {
-    setState(() => _isLoading = true);
-
-    final result = await _authService.signInWithGoogle();
-
-    setState(() => _isLoading = false);
-
-    if (mounted) {
-      if (result['success']) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
-        );
-      } else {
-        _showErrorDialog(result['error'] ?? 'Error con Google Sign-In');
       }
     }
   }
@@ -246,50 +226,10 @@ class _LoginScreenState extends State<LoginScreen> {
                             'Iniciar Sesión',
                             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                           ),
-                  ),
-                  const SizedBox(height: 16),
+                   ),
+                   const SizedBox(height: 32),
 
-                  // DIVISOR
-                  Row(
-                    children: [
-                      const Expanded(child: Divider()),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Text(
-                          'O continúa con',
-                          style: TextStyle(color: Colors.grey[600], fontSize: 14),
-                        ),
-                      ),
-                      const Expanded(child: Divider()),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  // BOTÓN GOOGLE
-                  OutlinedButton.icon(
-                    onPressed: _isLoading ? null : _loginWithGoogle,
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFF1A1A1A),
-                      side: BorderSide(color: Colors.grey[300]!),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      minimumSize: const Size.fromHeight(54),
-                    ),
-                    icon: const Icon(
-                      Icons.g_mobiledata,
-                      size: 24,
-                      color: Color(0xFFDB4437),
-                    ),
-                    label: const Text(
-                      'Continuar con Google',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-
-                  // LINK REGISTRO
+                   // LINK REGISTRO
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [

@@ -1,11 +1,9 @@
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
 
   // STREAM DE AUTENTICACIÓN (para mantener sesión)
   Stream<User?> get authStateChanges => _auth.authStateChanges();
@@ -82,50 +80,10 @@ class AuthService {
     }
   }
 
-  // INICIO DE SESIÓN CON GOOGLE
-  Future<Map<String, dynamic>> signInWithGoogle() async {
-    try {
-      // Disparar flujo de Google Sign-In
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      
-      if (googleUser == null) {
-        return {'success': false, 'error': 'Inicio de sesión cancelado'};
-      }
-
-      // Obtener detalles de autenticación
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-
-      // Crear credencial Firebase
-      final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
-
-      // Iniciar sesión en Firebase
-      UserCredential userCredential = await _auth.signInWithCredential(credential);
-
-      // Guardar en SharedPreferences
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('nombre', userCredential.user?.displayName ?? 'Usuario');
-      await prefs.setInt('userId', userCredential.user!.uid.hashCode);
-
-      return {
-        'success': true,
-        'nombre': userCredential.user?.displayName ?? 'Usuario',
-        'userId': userCredential.user!.uid
-      };
-    } on FirebaseAuthException catch (e) {
-      return _handleFirebaseError(e);
-    } catch (e) {
-      return {'success': false, 'error': 'Error Google Sign-In: $e'};
-    }
-  }
-
   // CERRAR SESIÓN
   Future<void> logout() async {
     try {
       await _auth.signOut();
-      await _googleSignIn.signOut();
       final prefs = await SharedPreferences.getInstance();
       await prefs.clear();
     } catch (e) {

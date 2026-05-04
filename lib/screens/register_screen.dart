@@ -63,25 +63,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
-  Future<void> _registerWithGoogle() async {
-    setState(() => _isLoading = true);
-
-    final result = await _authService.signInWithGoogle();
-
-    setState(() => _isLoading = false);
-
-    if (mounted) {
-      if (result['success']) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
-        );
-      } else {
-        _showErrorDialog(result['error'] ?? 'Error con Google Sign-In');
-      }
-    }
-  }
-
   void _showErrorDialog(String message) {
     showDialog(
       context: context,
@@ -382,34 +363,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                       const Expanded(child: Divider()),
                     ],
-                  ),
-                  const SizedBox(height: 16),
+                   ),
+                   const SizedBox(height: 32),
 
-                  // BOTÓN GOOGLE
-                  OutlinedButton.icon(
-                    onPressed: _isLoading ? null : _registerWithGoogle,
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFF1A1A1A),
-                      side: BorderSide(color: Colors.grey[300]!),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      minimumSize: const Size.fromHeight(54),
-                    ),
-                    icon: const Icon(
-                      Icons.g_mobiledata,
-                      size: 24,
-                      color: Color(0xFFDB4437),
-                    ),
-                    label: const Text(
-                      'Continuar con Google',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-
-                  // LINK LOGIN
+                   // LINK LOGIN
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
