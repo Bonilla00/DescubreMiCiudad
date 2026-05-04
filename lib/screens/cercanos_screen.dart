@@ -106,10 +106,10 @@ class _CercanosScreenState extends State<CercanosScreen> {
         ],
       ),
       body: _isLoading
-          ? Center(
+          ? const Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
-                children: const [
+                children: [
                   CircularProgressIndicator(),
                   SizedBox(height: 16),
                   Text("Obteniendo tu ubicación..."),

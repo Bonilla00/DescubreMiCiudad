@@ -191,9 +191,9 @@ class _HomeBodyState extends State<_HomeBody> {
         color: const Color(0xFF1A73E8).withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Row(
+      child: const Row(
         mainAxisSize: MainAxisSize.min,
-        children: const [
+        children: [
           Icon(Icons.my_location, size: 12, color: Color(0xFF1A73E8)),
           SizedBox(width: 4),
           Text("Ubicación activa", style: TextStyle(fontSize: 11, color: Color(0xFF1A73E8))),

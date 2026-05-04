@@ -48,10 +48,10 @@ class _FavoritosScreenState extends State<FavoritosScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _favoritos.isEmpty
-              ? Center(
+              ? const Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    children: const [
+                    children: [
                       Icon(Icons.favorite_border, size: 80, color: Colors.grey),
                       SizedBox(height: 16),
                       Text("No tienes favoritos aún", style: TextStyle(color: Colors.grey, fontSize: 18)),

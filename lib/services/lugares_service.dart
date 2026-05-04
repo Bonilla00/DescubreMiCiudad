@@ -62,7 +62,7 @@ class LugaresService {
         params.add('lng=$lng');
       }
       if (params.isNotEmpty) {
-        url += '?' + params.join('&');
+        url += '?${params.join('&')}';
       }
       final response = await http.get(Uri.parse(url)).timeout(ApiConstants.timeout);
       if (response.statusCode == 200) {

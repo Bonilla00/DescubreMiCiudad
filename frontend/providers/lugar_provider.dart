@@ -36,7 +36,7 @@ class LugarProvider with ChangeNotifier {
       }
 
       if (params.isNotEmpty) {
-        url += "?" + Uri(queryParameters: params).query;
+        url += "?${Uri(queryParameters: params).query}";
       }
 
       final response = await http.get(Uri.parse(url));

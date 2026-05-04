@@ -41,11 +41,9 @@ class _SearchScreenState extends State<SearchScreen> {
   Future<void> _initUbicacionYLoad() async {
     try {
       Position? pos = await Geolocator.getCurrentPosition(timeLimit: const Duration(seconds: 5)).catchError((_) => null);
-      if (pos != null) {
-        _userLat = pos.latitude;
-        _userLng = pos.longitude;
-      }
-    } catch (e) {
+      _userLat = pos.latitude;
+      _userLng = pos.longitude;
+        } catch (e) {
       debugPrint("Error ubicacion background: $e");
     }
     _loadAll();
@@ -150,7 +148,7 @@ class _SearchScreenState extends State<SearchScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(children: const [Icon(Icons.history, size: 16), SizedBox(width: 8), Text("Recientes")]),
+              const Row(children: [Icon(Icons.history, size: 16), SizedBox(width: 8), Text("Recientes")]),
               TextButton(onPressed: _clearHistory, child: const Text("Limpiar", style: TextStyle(color: Colors.red))),
             ],
           ),

@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../constants/api.dart';
+import '../models/place_model.dart';
+import '../widgets/restaurant_card.dart';
+import 'details_screen.dart';
 
 class CercanosScreen extends StatefulWidget {
   const CercanosScreen({super.key});
@@ -11,27 +14,42 @@ class CercanosScreen extends StatefulWidget {
 }
 
 class _CercanosScreenState extends State<CercanosScreen> {
-  List<dynamic> _lugares = [];
+  List<Place> _lugares = [];
+  List<Place> _filteredLugares = [];
   bool _isLoading = true;
+  final TextEditingController _searchController = TextEditingController();
+  String _selectedFilter = 'Todos';
+  final List<String> _filters = ['Todos', 'Comida', 'Bar', 'Popular'];
 
   @override
   void initState() {
     super.initState();
     _cargarDatos();
+    _searchController.addListener(_filterPlaces);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _cargarDatos() async {
     try {
-      final response = await http.get(Uri.parse("${ApiConstants.apiBaseUrl}/lugares"));
+      final response =
+          await http.get(Uri.parse("${ApiConstants.apiBaseUrl}/lugares"));
       if (response.statusCode == 200) {
         List<dynamic> data = jsonDecode(response.body);
-        
-        // Filtro de seguridad: Solo restaurantes con nombre válido
+        List<Place> places = data
+            .where((l) =>
+                l['nombre'] != null &&
+                !l['nombre'].toString().toLowerCase().contains('fundacion'))
+            .map((l) => Place.fromJson(l))
+            .toList();
+
         setState(() {
-          _lugares = data.where((l) => 
-            l['nombre'] != null && 
-            !l['nombre'].toString().toLowerCase().contains('fundacion')
-          ).toList();
+          _lugares = places;
+          _filteredLugares = places;
           _isLoading = false;
         });
       } else {
@@ -42,68 +60,152 @@ class _CercanosScreenState extends State<CercanosScreen> {
     }
   }
 
+  void _filterPlaces() {
+    String query = _searchController.text.toLowerCase();
+    setState(() {
+      _filteredLugares = _lugares.where((place) {
+        bool matchesSearch = place.nombre.toLowerCase().contains(query) ||
+            place.categoria.toLowerCase().contains(query);
+        bool matchesFilter = _selectedFilter == 'Todos' ||
+            (_selectedFilter == 'Comida' &&
+                place.categoria.toLowerCase().contains('restaurant')) ||
+            (_selectedFilter == 'Bar' &&
+                place.categoria.toLowerCase().contains('bar')) ||
+            (_selectedFilter == 'Popular' && place.promedioCalificacion >= 4.0);
+        return matchesSearch && matchesFilter;
+      }).toList();
+    });
+  }
+
+  Future<void> _refreshData() async {
+    await _cargarDatos();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Restaurantes Reales Cali"),
-        backgroundColor: Colors.orangeAccent,
-      ),
-      body: _isLoading 
-        ? const Center(child: CircularProgressIndicator())
-        : ListView.builder(
-            itemCount: _lugares.length,
-            padding: const EdgeInsets.all(10),
-            itemBuilder: (context, index) {
-              final l = _lugares[index];
-              final String imageUrl = l['imagen_url'] ?? 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4';
-              final double rating = (l['rating'] ?? 4.0).toDouble();
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Header con título
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'Restaurantes Cercanos',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF008A45),
+                    ),
+              ),
+            ),
 
-              return Card(
-                elevation: 4,
-                margin: const EdgeInsets.symmetric(vertical: 8),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                child: Column(
-                  children: [
-                    ClipRRect(
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
-                      child: Image.network(
-                        imageUrl,
-                        height: 180,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Image.network(
-                          'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4',
-                          height: 180,
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                    ),
-                    ListTile(
-                      title: Text(
-                        l['nombre'] ?? "Restaurante", 
-                        maxLines: 1, 
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.bold)
-                      ),
-                      subtitle: Text("${l['categoria'] ?? 'Restaurante'} • ${l['precio'] ?? '\$\$'}"),
-                      trailing: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.amber,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(
-                          rating.toStringAsFixed(1),
-                          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
-                        ),
-                      ),
-                    ),
-                  ],
+            // Buscador
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: 'Buscar restaurantes...',
+                  prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                  filled: true,
+                  fillColor: Colors.grey[100],
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 16),
                 ),
-              );
-            },
-          ),
+              ),
+            ),
+
+            // Filtros chips
+            Container(
+              height: 50,
+              margin: const EdgeInsets.symmetric(vertical: 16),
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: _filters.length,
+                itemBuilder: (context, index) {
+                  final filter = _filters[index];
+                  final isSelected = _selectedFilter == filter;
+                  return Container(
+                    margin: const EdgeInsets.only(right: 8),
+                    child: FilterChip(
+                      label: Text(filter),
+                      selected: isSelected,
+                      onSelected: (selected) {
+                        setState(() => _selectedFilter = filter);
+                        _filterPlaces();
+                      },
+                      backgroundColor: Colors.grey[100],
+                      selectedColor: const Color(0xFF008A45).withOpacity(0.1),
+                      checkmarkColor: const Color(0xFF008A45),
+                      labelStyle: TextStyle(
+                        color: isSelected
+                            ? const Color(0xFF008A45)
+                            : Colors.black87,
+                        fontWeight:
+                            isSelected ? FontWeight.bold : FontWeight.normal,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                        side: BorderSide(
+                          color: isSelected
+                              ? const Color(0xFF008A45)
+                              : Colors.grey[300]!,
+                          width: 1,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+
+            // Lista de restaurantes
+            Expanded(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _filteredLugares.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.restaurant,
+                                  size: 64, color: Colors.grey[400]),
+                              const SizedBox(height: 16),
+                              Text(
+                                'No se encontraron restaurantes',
+                                style: TextStyle(
+                                    color: Colors.grey[600], fontSize: 16),
+                              ),
+                            ],
+                          ),
+                        )
+                      : RefreshIndicator(
+                          onRefresh: _refreshData,
+                          child: ListView.builder(
+                            padding: const EdgeInsets.only(bottom: 16),
+                            itemCount: _filteredLugares.length,
+                            itemBuilder: (context, index) {
+                              final place = _filteredLugares[index];
+                              return RestaurantCard(
+                                place: place,
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => DetailsScreen(place: place),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

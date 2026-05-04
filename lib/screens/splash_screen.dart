@@ -37,19 +37,19 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF1A73E8),
+    return const Scaffold(
+      backgroundColor: Color(0xFF1A73E8),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.location_city, size: 100, color: Colors.white),
-            const SizedBox(height: 16),
-            const Text(
+            Icon(Icons.location_city, size: 100, color: Colors.white),
+            SizedBox(height: 16),
+            Text(
               "Descubre Mi Ciudad",
               style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
             ),
-            const Text(
+            Text(
               "Explora tu ciudad",
               style: TextStyle(color: Colors.white70, fontSize: 16),
             ),
