@@ -31,6 +31,14 @@ const runMigrations = async () => {
         // Asegurar que exista la columna foto_url
         await pool.query('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS foto_url TEXT');
 
+        // Insertar los 15 restaurantes de Cali si la tabla está vacía
+        const { rows: countRows } = await pool.query('SELECT COUNT(*) FROM lugares');
+        if (parseInt(countRows[0].count) === 0) {
+            const seedSql = fs.readFileSync(path.join(__dirname, 'src/migrations/seed.sql'), 'utf8');
+            await pool.query(seedSql);
+            console.log('🌱 Seed: 15 restaurantes de Cali insertados.');
+        }
+
         console.log('✅ Base de datos lista.');
     } catch (err) {
         console.error('❌ Error en configuración de BD:', err);
@@ -303,6 +311,29 @@ app.get('/api/resenas/:lugarId', async (req, res) => {
         res.json(rows);
     } catch (err) {
         res.status(500).json({ error: "Error al obtener reseñas" });
+    }
+});
+
+// --- ADMIN: RESET DB ---
+app.post('/api/admin/reset-db', async (req, res) => {
+    try {
+        // Limpiar datos existentes respetando las FK
+        await pool.query('DELETE FROM favoritos');
+        await pool.query('DELETE FROM resenas');
+        await pool.query('DELETE FROM lugares');
+
+        // Insertar los 15 restaurantes reales de Cali desde seed.sql
+        const seedSql = fs.readFileSync(path.join(__dirname, 'src/migrations/seed.sql'), 'utf8');
+        await pool.query(seedSql);
+
+        const { rows } = await pool.query('SELECT COUNT(*) FROM lugares');
+        res.json({
+            message: '✅ Base de datos reiniciada con los 15 restaurantes de Cali',
+            total_lugares: parseInt(rows[0].count)
+        });
+    } catch (err) {
+        console.error('❌ Error en reset-db:', err);
+        res.status(500).json({ error: 'Error al reiniciar la base de datos', detalle: err.message });
     }
 });
 
