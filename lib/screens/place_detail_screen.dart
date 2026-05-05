@@ -3,101 +3,137 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:intl/intl.dart';
 import '../models/place_model.dart';
+import '../models/resena_model.dart';
+import '../services/lugares_service.dart';
 
-class PlaceDetailScreen extends StatelessWidget {
+class PlaceDetailScreen extends StatefulWidget {
   final Place place;
-
   const PlaceDetailScreen({super.key, required this.place});
+
+  @override
+  State<PlaceDetailScreen> createState() => _PlaceDetailScreenState();
+}
+
+class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
+  final LugaresService _service = LugaresService();
+  final TextEditingController _commentController = TextEditingController();
+  
+  double _promedio = 0.0;
+  int _total = 0;
+  List<Resena> _resenas = [];
+  bool _loadingResenas = true;
+  double _userRating = 5.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarResenas();
+  }
+
+  Future<void> _cargarResenas() async {
+    final r = await _service.getResenas(widget.place.id);
+    final p = await _service.getPromedio(widget.place.id);
+
+    if (mounted) {
+      setState(() {
+        _resenas = r;
+        _promedio = double.tryParse(p['promedio'].toString()) ?? 0.0;
+        _total = p['total'] ?? 0;
+        _loadingResenas = false;
+      });
+    }
+  }
+
+  void _enviarResena() async {
+    if (_commentController.text.isEmpty) return;
+    final ok = await _service.publicarResena(widget.place.id, _commentController.text, _userRating.toInt());
+    if (ok) {
+      _commentController.clear();
+      _cargarResenas();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Reseña enviada")));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(place.nombre, style: const TextStyle(color: Colors.white)),
+        title: Text(widget.place.nombre, style: const TextStyle(color: Colors.white)),
         backgroundColor: const Color(0xFF1A73E8),
         iconTheme: const IconThemeData(color: Colors.white),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.share),
-            onPressed: () => Share.share("${place.nombre}\n${place.descripcion}"),
-          ),
-        ],
       ),
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 1. IMAGEN DEL LUGAR
             CachedNetworkImage(
-              imageUrl: place.imagenUrl,
+              imageUrl: widget.place.imagenUrl,
               width: double.infinity,
-              height: 250,
+              height: 230,
               fit: BoxFit.cover,
-              placeholder: (context, url) => Container(color: Colors.grey[200]),
-              errorWidget: (context, url, error) => const Icon(Icons.image_not_supported),
             ),
-            
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 2. CATEGORÍA
-                  Chip(
-                    label: Text(place.categoria),
-                    backgroundColor: const Color(0xFF1A73E8).withValues(alpha: 0.1),
-                  ),
+                  Text(widget.place.nombre, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   
-                  // 3. NOMBRE Y RATING
-                  Text(
-                    place.nombre,
-                    style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
+                  // SECCIÓN PROMEDIO
                   Row(
                     children: [
-                      RatingBarIndicator(
-                        rating: place.rating,
-                        itemBuilder: (context, index) => const Icon(Icons.star, color: Colors.amber),
-                        itemCount: 5,
-                        itemSize: 24.0,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        place.rating.toString(),
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(place.precio, style: const TextStyle(color: Colors.grey, fontSize: 18)),
+                      const Icon(Icons.star, color: Colors.amber, size: 28),
+                      const SizedBox(width: 4),
+                      Text(_promedio.toStringAsFixed(1), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                      Text(" ($_total reseñas)", style: const TextStyle(color: Colors.grey)),
                     ],
                   ),
+                  const Divider(height: 30),
+                  const Text("Descripción", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text(widget.place.descripcion),
                   
-                  const Divider(height: 32),
+                  const SizedBox(height: 20),
+                  _buildMapButton(),
                   
-                  // 4. DESCRIPCIÓN
-                  const Text(
-                    "Descripción",
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  const Divider(height: 40),
+                  
+                  // SECCIÓN COMENTARIOS
+                  const Text("Reseñas de la comunidad", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 10),
+                  _loadingResenas 
+                    ? const Center(child: CircularProgressIndicator())
+                    : _buildResenasList(),
+                  
+                  const Divider(height: 40),
+                  
+                  // FORMULARIO NUEVA RESEÑA
+                  const Text("Deja tu opinión", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 10),
+                  RatingBar.builder(
+                    initialRating: 5,
+                    minRating: 1,
+                    itemSize: 30,
+                    itemBuilder: (context, _) => const Icon(Icons.star, color: Colors.amber),
+                    onRatingUpdate: (r) => _userRating = r,
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    place.descripcion,
-                    style: const TextStyle(fontSize: 16, height: 1.5),
+                  TextField(
+                    controller: _commentController,
+                    decoration: const InputDecoration(hintText: "Escribe tu comentario...", border: OutlineInputBorder()),
+                    maxLines: 2,
                   ),
-                  
-                  const SizedBox(height: 24),
-                  
-                  // 5. BOTÓN CÓMO LLEGAR
-                  _buildMapButton(context),
-                  
-                  const SizedBox(height: 32),
-                  
-                  // INFO ADICIONAL (Estática)
-                  _infoRow(Icons.access_time, "Horario: 8AM - 10PM"),
-                  // CORRECCIÓN: No se usa place.direccion porque no existe en el modelo
-                  _infoRow(Icons.location_on, "Ubicación: Cali, Colombia"),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _enviarResena,
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1A73E8)),
+                      child: const Text("PUBLICAR", style: TextStyle(color: Colors.white)),
+                    ),
+                  ),
+                  const SizedBox(height: 40),
                 ],
               ),
             ),
@@ -107,36 +143,43 @@ class PlaceDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildMapButton(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      height: 50,
-      child: ElevatedButton.icon(
-        onPressed: () async {
-          final url = 'https://www.google.com/maps/search/?api=1&query=${place.lat},${place.lng}';
-          if (await canLaunchUrl(Uri.parse(url))) {
-            await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-          }
-        },
-        icon: const Icon(Icons.directions, color: Colors.white),
-        label: const Text('CÓMO LLEGAR', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF1A73E8),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+  Widget _buildResenasList() {
+    if (_resenas.isEmpty) return const Text("Aún no hay reseñas. ¡Sé el primero!");
+    return Column(
+      children: _resenas.map((r) => Card(
+        margin: const EdgeInsets.only(bottom: 12),
+        child: ListTile(
+          leading: const CircleAvatar(backgroundColor: Color(0xFF1A73E8), child: Icon(Icons.person, color: Colors.white)),
+          title: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(r.usuario, style: const TextStyle(fontWeight: FontWeight.bold)),
+              Text(DateFormat('dd/MM/yyyy').format(DateTime.parse(r.fecha)), style: const TextStyle(fontSize: 11, color: Colors.grey)),
+            ],
+          ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: List.generate(5, (i) => Icon(i < r.rating ? Icons.star : Icons.star_border, color: Colors.amber, size: 14))),
+              Text(r.comentario),
+            ],
+          ),
         ),
-      ),
+      )).toList(),
     );
   }
 
-  Widget _infoRow(IconData icon, String text) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Icon(icon, size: 20, color: const Color(0xFF1A73E8)),
-          const SizedBox(width: 12),
-          Text(text, style: const TextStyle(fontSize: 14)),
-        ],
+  Widget _buildMapButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: () async {
+          final url = 'https://www.google.com/maps/search/?api=1&query=${widget.place.lat},${widget.place.lng}';
+          if (await canLaunchUrl(Uri.parse(url))) await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+        },
+        icon: const Icon(Icons.map, color: Colors.white),
+        label: const Text("CÓMO LLEGAR", style: TextStyle(color: Colors.white)),
+        style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
       ),
     );
   }

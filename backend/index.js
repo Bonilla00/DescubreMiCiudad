@@ -6,7 +6,6 @@ const jwt = require('jsonwebtoken');
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
-const { calcularDistancia, calcularTiempos } = require('./src/utils/distancia');
 require('dotenv').config();
 
 const app = express();
@@ -24,85 +23,96 @@ const pool = new Pool({
 app.use(cors());
 app.use(express.json());
 
-// --- ENDPOINT SOLICITADO: /lugares ---
-// Explicación: Se coloca fuera de /api para cumplir con el requerimiento directo.
-// El error "Cannot GET /lugares" ocurría porque probablemente estaba bajo /api/lugares o no existía.
-app.get('/lugares', async (req, res) => {
-    console.log("🚀 Endpoint /lugares llamado");
-    const { lat, lng } = req.query;
-
-    // Si no hay API KEY, devolvemos un error claro
-    if (!GOOGLE_API_KEY) {
-        console.error("❌ ERROR: GOOGLE_API_KEY no configurada en variables de entorno.");
-        return res.status(500).json({ error: "Google API Key no configurada en el servidor" });
+const runMigrations = async () => {
+    try {
+        // Asegurar tabla reseñas
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS resenas (
+                id SERIAL PRIMARY KEY,
+                lugar_id TEXT NOT NULL,
+                usuario TEXT NOT NULL,
+                comentario TEXT,
+                rating INTEGER NOT NULL,
+                fecha TIMESTAMP DEFAULT NOW()
+            )
+        `);
+        console.log('✅ Base de datos lista (Tablas verificadas).');
+    } catch (err) {
+        console.error('❌ Error en migración:', err);
     }
+};
+runMigrations();
+
+// --- ENDPOINTS RESEÑAS ---
+
+// Obtener todas las reseñas de un lugar (Ordenadas por rating desc)
+app.get('/resenas/:lugarId', async (req, res) => {
+    try {
+        const { lugarId } = req.params;
+        const { rows } = await pool.query(
+            'SELECT * FROM resenas WHERE lugar_id = $1 ORDER BY rating DESC, fecha DESC',
+            [lugarId]
+        );
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: 'Error obteniendo reseñas' });
+    }
+});
+
+// Obtener promedio y total de reseñas
+app.get('/resenas/promedio/:lugarId', async (req, res) => {
+    try {
+        const { lugarId } = req.params;
+        const { rows } = await pool.query(
+            'SELECT COALESCE(AVG(rating), 0) as promedio, COUNT(*) as total FROM resenas WHERE lugar_id = $1',
+            [lugarId]
+        );
+        res.json({
+            promedio: parseFloat(rows[0].promedio).toFixed(1),
+            total: parseInt(rows[0].total)
+        });
+    } catch (err) {
+        res.status(500).json({ error: 'Error calculando promedio' });
+    }
+});
+
+// Publicar reseña
+app.post('/api/resenas', async (req, res) => {
+    const { lugar_id, usuario, comentario, rating } = req.body;
+    try {
+        const { rows } = await pool.query(
+            'INSERT INTO resenas (lugar_id, usuario, comentario, rating) VALUES ($1, $2, $3, $4) RETURNING *',
+            [lugar_id, usuario, comentario, rating]
+        );
+        res.status(201).json(rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: 'Error al publicar reseña' });
+    }
+});
+
+// --- LUGARES (GOOGLE PLACES) ---
+app.get('/lugares', async (req, res) => {
+    const { lat, lng } = req.query;
+    if (!GOOGLE_API_KEY) return res.status(500).json({ error: "API Key missing" });
 
     try {
-        const location = lat && lng ? `${lat},${lng}` : "3.4516,-76.5320"; // Cali por defecto
-        console.log(`🔍 Buscando en Google Places cerca de: ${location}`);
-
+        const location = lat && lng ? `${lat},${lng}` : "3.4516,-76.5320";
         const response = await axios.get(
             `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location}&radius=2000&type=restaurant&key=${GOOGLE_API_KEY}`
         );
 
-        if (response.data.status !== "OK" && response.data.status !== "ZERO_RESULTS") {
-            throw new Error(`Google API Error: ${response.data.status}`);
-        }
-
-        const restaurantes = response.data.results.map((place) => {
-            const photoReference = place.photos?.[0]?.photo_reference;
-            const imagenUrl = photoReference
-                ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${photoReference}&key=${GOOGLE_API_KEY}`
-                : "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4"; // Fallback
-
-            return {
-                id: place.place_id,
-                nombre: place.name,
-                descripcion: place.vicinity || "Restaurante en Cali",
-                imagen: imagenUrl,
-                rating: place.rating || 0.0,
-                precio: "$".repeat(place.price_level || 2),
-                latitud: place.geometry.location.lat,
-                longitud: place.geometry.location.lng,
-                direccion: place.vicinity,
-                como_llegar: `https://www.google.com/maps/dir/?api=1&destination=${place.geometry.location.lat},${place.geometry.location.lng}`
-            };
-        });
-
+        const restaurantes = response.data.results.map((place) => ({
+            id: place.place_id,
+            nombre: place.name,
+            descripcion: place.vicinity,
+            imagen: place.photos ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${place.photos[0].photo_reference}&key=${GOOGLE_API_KEY}` : "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4",
+            rating: place.rating || 0.0,
+            precio: "$".repeat(place.price_level || 2),
+            latitud: place.geometry.location.lat,
+            longitud: place.geometry.location.lng,
+        }));
         res.json(restaurantes);
-    } catch (error) {
-        console.error("❌ Error en /lugares:", error.message);
-        res.status(500).json({ error: error.message });
-    }
+    } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// --- MANTENER OTROS ENDPOINTS (Opcional pero recomendado para no romper la app) ---
-
-app.post('/api/auth/register', async (req, res) => {
-    let { nombre, email, password } = req.body;
-    if (!nombre || !email || !password) return res.status(400).json({ error: "Campos requeridos" });
-    try {
-        const hashedPassword = await bcrypt.hash(password, 10);
-        const result = await pool.query(
-            'INSERT INTO usuarios (nombre, email, password) VALUES ($1, $2, $3) RETURNING id, nombre, email',
-            [nombre, email, hashedPassword]
-        );
-        res.status(201).json({ usuario: result.rows[0] });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.post('/api/auth/login', async (req, res) => {
-    let { email, password } = req.body;
-    try {
-        const { rows } = await pool.query('SELECT * FROM usuarios WHERE email = $1', [email]);
-        if (rows.length === 0) return res.status(401).json({ error: "Usuario no encontrado" });
-        const valid = await bcrypt.compare(password, rows[0].password);
-        if (!valid) return res.status(401).json({ error: "Password incorrecto" });
-        const token = jwt.sign({ userId: rows[0].id }, JWT_SECRET, { expiresIn: '7d' });
-        res.json({ token, usuario: rows[0] });
-    } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.listen(PORT, () => {
-    console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
-});
+app.listen(PORT, () => console.log(`🚀 Servidor en puerto ${PORT}`));
