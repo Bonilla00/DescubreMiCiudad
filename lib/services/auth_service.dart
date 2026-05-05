@@ -6,7 +6,8 @@ import '../constants/api.dart';
 class AuthService {
   static const String _keyToken = 'jwt_token';
   static const String _keyUser = 'user_data';
-  static const String _keyEmail = 'user_email'; // Clave para el email
+  static const String _keyEmail = 'user_email';
+  static const String _keyUserId = 'user_id'; // Nueva clave para el ID
 
   Future<Map<String, dynamic>> login(String email, String password) async {
     try {
@@ -20,12 +21,12 @@ class AuthService {
         final data = jsonDecode(response.body);
         final prefs = await SharedPreferences.getInstance();
         
-        // Guardar token y datos del usuario
         await prefs.setString(_keyToken, data['token']);
         await prefs.setString(_keyUser, jsonEncode(data['user']));
-        
-        // Guardar el email solicitado
         await prefs.setString(_keyEmail, email);
+        
+        // 🔥 GUARDAR userId PARA STATS
+        await prefs.setInt(_keyUserId, data['user']['id']);
         
         return {'success': true};
       }
@@ -63,17 +64,23 @@ class AuthService {
     return null;
   }
 
-  // MÉTODO SOLICITADO: Obtener email desde SharedPreferences
   Future<String?> getEmail() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_keyEmail);
+  }
+
+  // MÉTODO AGREGADO: Obtener userId
+  Future<int?> getUserId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(_keyUserId);
   }
 
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_keyToken);
     await prefs.remove(_keyUser);
-    await prefs.remove(_keyEmail); // Limpiar email al cerrar sesión
+    await prefs.remove(_keyEmail);
+    await prefs.remove(_keyUserId);
   }
 
   Future<bool> isLoggedIn() async {

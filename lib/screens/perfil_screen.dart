@@ -1,5 +1,8 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import '../services/auth_service.dart';
+import '../constants/api.dart';
 import 'login_screen.dart';
 
 class PerfilScreen extends StatefulWidget {
@@ -15,13 +18,17 @@ class _PerfilScreenState extends State<PerfilScreen> {
   String? _email;
   bool _isLoading = true;
 
+  // VARIABLES DINÁMICAS
+  int _resenasCount = 0;
+  int _favoritosCount = 0;
+
   @override
   void initState() {
     super.initState();
-    _load();
+    _loadData();
   }
 
-  Future<void> _load() async {
+  Future<void> _loadData() async {
     final nombre = await _authService.getNombre();
     final email = await _authService.getEmail();
     
@@ -29,8 +36,39 @@ class _PerfilScreenState extends State<PerfilScreen> {
       setState(() {
         _nombre = nombre ?? "Usuario";
         _email = email;
+      });
+    }
+
+    // CARGAR ESTADÍSTICAS REALES
+    await _cargarStats();
+
+    if (mounted) {
+      setState(() {
         _isLoading = false;
       });
+    }
+  }
+
+  Future<void> _cargarStats() async {
+    try {
+      final userId = await _authService.getUserId();
+      if (userId == null) return;
+
+      final response = await http.get(
+        Uri.parse("${ApiConstants.baseUrl}/api/user/stats/$userId"),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (mounted) {
+          setState(() {
+            _resenasCount = data['resenas'];
+            _favoritosCount = data['favoritos'];
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("Error cargando stats: $e");
     }
   }
 
@@ -104,7 +142,6 @@ class _PerfilScreenState extends State<PerfilScreen> {
                 right: 0,
                 child: GestureDetector(
                   onTap: () {
-                    // Acción para cambiar foto
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text("Funcionalidad de cámara próximamente"))
                     );
@@ -151,9 +188,9 @@ class _PerfilScreenState extends State<PerfilScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        _statItem("12", "Reseñas"),
+        _statItem("$_resenasCount", "Reseñas"),
         Container(height: 40, width: 1, color: Colors.grey[300]),
-        _statItem("5", "Favoritos"),
+        _statItem("$_favoritosCount", "Favoritos"),
       ],
     );
   }

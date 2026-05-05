@@ -19,7 +19,7 @@ const pool = new Pool({
 });
 
 app.use(cors());
-app.use(express.json()); // ✅ Middleware asegurado
+app.use(express.json());
 
 const runMigrations = async () => {
     try {
@@ -32,6 +32,24 @@ const runMigrations = async () => {
                 avatar TEXT DEFAULT 'https://i.pravatar.cc/150'
             )
         `);
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS resenas (
+                id SERIAL PRIMARY KEY,
+                usuario_id INTEGER REFERENCES usuarios(id),
+                lugar_id TEXT NOT NULL,
+                comentario TEXT,
+                rating INTEGER NOT NULL,
+                fecha TIMESTAMP DEFAULT NOW()
+            )
+        `);
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS favoritos (
+                id SERIAL PRIMARY KEY,
+                usuario_id INTEGER REFERENCES usuarios(id) ON DELETE CASCADE,
+                lugar_id TEXT NOT NULL,
+                UNIQUE(usuario_id, lugar_id)
+            )
+        `);
         console.log('✅ Base de datos lista.');
     } catch (err) {
         console.error('❌ Error en migración:', err);
@@ -39,82 +57,69 @@ const runMigrations = async () => {
 };
 runMigrations();
 
-// --- AUTH ROUTES UNIFICADAS (/api/auth) ---
+// 🔥 ENDPOINT DINÁMICO: Estadísticas del usuario
+app.get('/api/user/stats/:userId', async (req, res) => {
+    try {
+        const { userId } = req.params;
 
-// ✅ REGISTER CORREGIDO Y UNIFICADO
+        const resenas = await pool.query(
+            'SELECT COUNT(*) FROM resenas WHERE usuario_id = $1',
+            [userId]
+        );
+
+        const favoritos = await pool.query(
+            'SELECT COUNT(*) FROM favoritos WHERE usuario_id = $1',
+            [userId]
+        );
+
+        res.json({
+            resenas: parseInt(resenas.rows[0].count),
+            favoritos: parseInt(favoritos.rows[0].count),
+        });
+    } catch (error) {
+        console.error("❌ Error stats:", error);
+        res.status(500).json({ error: 'Error obteniendo stats' });
+    }
+});
+
+// --- AUTH ---
 app.post('/api/auth/register', async (req, res) => {
     try {
-        console.log("📥 BODY REGISTER:", req.body);
         const { nombre, email, password } = req.body;
-
-        if (!nombre || !email || !password) {
-            return res.status(400).json({ error: 'Datos incompletos' });
-        }
-
+        if (!nombre || !email || !password) return res.status(400).json({ error: 'Datos incompletos' });
         const cleanEmail = email.toLowerCase().trim();
         const existing = await pool.query('SELECT * FROM usuarios WHERE email = $1', [cleanEmail]);
+        if (existing.rows.length > 0) return res.status(400).json({ error: 'El correo ya está registrado' });
 
-        if (existing.rows.length > 0) {
-            return res.status(400).json({ error: 'El correo ya está registrado' });
-        }
-
-        // Mejor práctica: Encriptar contraseña
         const hashedPassword = await bcrypt.hash(password, 10);
-
         await pool.query(
             'INSERT INTO usuarios (nombre, email, password) VALUES ($1, $2, $3)',
             [nombre.trim(), cleanEmail, hashedPassword]
         );
-
-        console.log("✅ Registro exitoso:", cleanEmail);
         res.status(201).json({ message: 'Usuario creado correctamente' });
-
-    } catch (error) {
-        console.error("❌ ERROR REGISTER:", error);
-        res.status(500).json({ error: 'Error interno', detalle: error.message });
-    }
+    } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// ✅ LOGIN UNIFICADO Y SEGURO (CON BCRYPT)
 app.post('/api/auth/login', async (req, res) => {
     try {
         const { email, password } = req.body;
-        console.log("🔑 Intento de login:", email);
-
-        if (!email || !password) {
-            return res.status(400).json({ error: "Email y password requeridos" });
-        }
-
         const cleanEmail = email.toLowerCase().trim();
         const { rows } = await pool.query('SELECT * FROM usuarios WHERE email = $1', [cleanEmail]);
-
-        if (rows.length === 0) {
-            return res.status(401).json({ error: "Credenciales inválidas" });
-        }
+        if (rows.length === 0) return res.status(401).json({ error: "Credenciales inválidas" });
 
         const user = rows[0];
-
-        // Verificación con bcrypt para mayor seguridad
         const validPassword = await bcrypt.compare(password, user.password);
-        if (!validPassword) {
-            return res.status(401).json({ error: "Credenciales inválidas" });
-        }
+        if (!validPassword) return res.status(401).json({ error: "Credenciales inválidas" });
 
         const token = jwt.sign({ userId: user.id, nombre: user.nombre }, JWT_SECRET, { expiresIn: '30d' });
-
-        console.log("✅ Login exitoso:", cleanEmail);
         res.json({
             token,
             user: { id: user.id, nombre: user.nombre, avatar: user.avatar }
         });
-
-    } catch (err) {
-        console.error("❌ ERROR LOGIN:", err);
-        res.status(500).json({ error: "Error interno" });
-    }
+    } catch (err) { res.status(500).json({ error: "Error interno" }); }
 });
 
-// --- OTROS ENDPOINTS ---
+// --- LUGARES ---
 app.get('/lugares', async (req, res) => {
     const { lat, lng } = req.query;
     if (!GOOGLE_API_KEY) return res.status(500).json({ error: "API Key missing" });
