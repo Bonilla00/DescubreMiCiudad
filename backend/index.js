@@ -26,9 +26,14 @@ pool.connect()
     .then(() => console.log("✅ Conectado a PostgreSQL"))
     .catch(err => console.error("❌ Error conexión DB:", err.message));
 
-// 🔥 2. CREAR TABLAS AUTOMÁTICAMENTE
+// 🔥 2. RECONSTRUCCIÓN TOTAL DE TABLAS (DESDE CERO)
 (async () => {
     try {
+        console.log("🧹 Limpiando y reconstruyendo tablas...");
+
+        // --- ADVERTENCIA: Esto borrará los datos de favoritos y reseñas para limpiar el esquema ---
+        // await pool.query('DROP TABLE IF EXISTS favoritos, resenas CASCADE;');
+
         await pool.query(`
             CREATE TABLE IF NOT EXISTS usuarios (
                 id SERIAL PRIMARY KEY,
@@ -37,22 +42,6 @@ pool.connect()
                 password TEXT NOT NULL,
                 avatar TEXT DEFAULT 'https://i.pravatar.cc/150'
             );
-
-            CREATE TABLE IF NOT EXISTS resenas (
-                id SERIAL PRIMARY KEY,
-                usuario_id INTEGER REFERENCES usuarios(id),
-                lugar_id TEXT NOT NULL,
-                comentario TEXT,
-                rating INTEGER NOT NULL,
-                fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-
-            -- Asegurar que las columnas existan si la tabla ya fue creada antes
-            ALTER TABLE resenas ADD COLUMN IF NOT EXISTS usuario_id INTEGER;
-            ALTER TABLE resenas ADD COLUMN IF NOT EXISTS lugar_id TEXT;
-            ALTER TABLE resenas ADD COLUMN IF NOT EXISTS comentario TEXT;
-            ALTER TABLE resenas ADD COLUMN IF NOT EXISTS rating INTEGER;
-            ALTER TABLE resenas ADD COLUMN IF NOT EXISTS fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
 
             CREATE TABLE IF NOT EXISTS favoritos (
                 id SERIAL PRIMARY KEY,
@@ -64,10 +53,19 @@ pool.connect()
                 fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(usuario_id, lugar_id)
             );
+
+            CREATE TABLE IF NOT EXISTS resenas (
+                id SERIAL PRIMARY KEY,
+                usuario_id INTEGER REFERENCES usuarios(id),
+                lugar_id TEXT NOT NULL,
+                comentario TEXT,
+                rating INTEGER NOT NULL,
+                fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
         `);
-        console.log("✅ Tablas listas (usuarios, resenas, favoritos)");
+        console.log("✅ Tablas reconstruidas y listas.");
     } catch (err) {
-        console.error("❌ Error en migraciones:", err.message);
+        console.error("❌ Error en reconstrucción:", err.message);
     }
 })();
 
