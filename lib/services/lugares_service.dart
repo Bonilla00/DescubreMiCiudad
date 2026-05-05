@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'dart:async';
-import 'package:flutter/foundation.dart'; // 🔥 IMPORTAR PARA debugPrint
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../constants/api.dart';
 import '../models/place_model.dart';
@@ -49,24 +49,33 @@ class LugaresService {
     try {
       final userId = await _authService.getUserId();
       final nombre = await _authService.getNombre();
+      
+      final url = Uri.parse("${ApiConstants.baseUrl}/api/resenas");
+      final body = jsonEncode({
+        'lugar_id': lugarId,
+        'usuario_id': userId,
+        'usuario_nombre': nombre,
+        'comentario': comentario,
+        'rating': rating,
+      });
+
+      debugPrint("🚀 ENVIANDO RESEÑA A: $url");
+      debugPrint("📦 BODY RESEÑA: $body");
 
       final response = await http.post(
-        Uri.parse("${ApiConstants.baseUrl}/api/resenas"),
+        url,
         headers: {
           'Content-Type': 'application/json',
         },
-        body: jsonEncode({
-          'lugar_id': lugarId,
-          'usuario_id': userId,
-          'usuario_nombre': nombre,
-          'comentario': comentario,
-          'rating': rating,
-        }),
+        body: body,
       );
+
+      debugPrint("📥 RESPUESTA RESEÑA STATUS: ${response.statusCode}");
+      debugPrint("📥 RESPUESTA RESEÑA BODY: ${response.body}");
 
       return response.statusCode == 201;
     } catch (e) {
-      print("Error agregarResena: $e");
+      debugPrint("❌ ERROR CRÍTICO agregarResena: $e");
       return false;
     }
   }
@@ -75,18 +84,21 @@ class LugaresService {
   Future<bool> esFavorito(String lugarId) async {
     try {
       final userId = await _authService.getUserId();
+      debugPrint("🔍 VERIFICANDO FAVORITO - USER: $userId, LUGAR: $lugarId");
       if (userId == null) return false;
 
-      final response = await http.get(
-        Uri.parse("${ApiConstants.baseUrl}/api/favoritos/$userId/$lugarId"),
-      );
+      final url = Uri.parse("${ApiConstants.baseUrl}/api/favoritos/$userId/$lugarId");
+      final response = await http.get(url);
+
+      debugPrint("📥 RESPUESTA ES_FAVORITO STATUS: ${response.statusCode}");
+      debugPrint("📥 RESPUESTA ES_FAVORITO BODY: ${response.body}");
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         return data['isFavorite'] ?? false;
       }
     } catch (e) {
-      print("Error esFavorito: $e");
+      debugPrint("❌ ERROR esFavorito: $e");
     }
     return false;
   }
@@ -94,24 +106,34 @@ class LugaresService {
   Future<bool> toggleFavorito(String lugarId, bool yaEsFavorito) async {
     try {
       final userId = await _authService.getUserId();
-      if (userId == null) return false;
+      if (userId == null) {
+        debugPrint("⚠️ ERROR: userId es NULL en toggleFavorito");
+        return false;
+      }
 
       final headers = {'Content-Type': 'application/json'};
 
       if (yaEsFavorito) {
         final url = Uri.parse("${ApiConstants.baseUrl}/api/favoritos/$userId/$lugarId");
-        debugPrint("DELETE FAVORITO URL: $url");
+        debugPrint("🗑️ ELIMINANDO FAVORITO EN: $url");
         final response = await http.delete(url, headers: headers);
+        debugPrint("📥 RESPUESTA DELETE STATUS: ${response.statusCode}");
         return response.statusCode == 200;
       } else {
         final url = Uri.parse("${ApiConstants.baseUrl}/api/favoritos");
         final body = jsonEncode({'usuario_id': userId, 'lugar_id': lugarId});
-        debugPrint("POST FAVORITO BODY: $body");
-        final response = await http.post(url, headers: headers, body: body);
+        debugPrint("❤️ AGREGANDO FAVORITO A: $url");
+        debugPrint("📦 BODY FAVORITO: $body");
+        
+        final response = await http.post(url, headers: headers, body: body)
+            .timeout(const Duration(seconds: 10)); // ⏱️ TIEMPO LÍMITE
+
+        debugPrint("📥 RESPUESTA POST STATUS: ${response.statusCode}");
+        debugPrint("📥 RESPUESTA POST BODY: ${response.body}");
         return response.statusCode == 201 || response.statusCode == 200;
       }
     } catch (e) {
-      print("Error toggleFavorito: $e");
+      debugPrint("❌ ERROR toggleFavorito: $e");
       return false;
     }
   }
