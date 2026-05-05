@@ -11,12 +11,6 @@ const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'mi_secreto_super_seguro';
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
 
-// 🔥 1. CONEXIÓN CORRECTA A POSTGRES (RAILWAY)
-console.log("🛠️ Verificando DATABASE_URL...");
-if (!process.env.DATABASE_URL) {
-    console.error("❌ CRÍTICO: DATABASE_URL no está definida en las variables de entorno.");
-}
-
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false }
@@ -26,14 +20,15 @@ pool.connect()
     .then(() => console.log("✅ Conectado a PostgreSQL"))
     .catch(err => console.error("❌ Error conexión DB:", err.message));
 
-// 🔥 2. RECONSTRUCCIÓN TOTAL DE TABLAS (DESDE CERO)
+// 🔥 RECONSTRUCCIÓN TOTAL (RESET)
 (async () => {
     try {
-        console.log("🧹 Limpiando y reconstruyendo tablas...");
+        console.log("🧹 Iniciando reconstrucción total...");
 
-        // --- ADVERTENCIA: Esto borrará los datos de favoritos y reseñas para limpiar el esquema ---
-        // await pool.query('DROP TABLE IF EXISTS favoritos, resenas CASCADE;');
+        // BORRADO DE TABLAS ANTIGUAS
+        await pool.query('DROP TABLE IF EXISTS favoritos, resenas CASCADE;');
 
+        // CREACIÓN DE TABLAS LIMPIAS
         await pool.query(`
             CREATE TABLE IF NOT EXISTS usuarios (
                 id SERIAL PRIMARY KEY,
@@ -43,27 +38,24 @@ pool.connect()
                 avatar TEXT DEFAULT 'https://i.pravatar.cc/150'
             );
 
-            CREATE TABLE IF NOT EXISTS favoritos (
+            CREATE TABLE favoritos (
                 id SERIAL PRIMARY KEY,
-                usuario_id INTEGER REFERENCES usuarios(id),
+                usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
                 lugar_id TEXT NOT NULL,
-                nombre TEXT,
-                imagen TEXT,
-                categoria TEXT,
-                fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                creado_en TIMESTAMP DEFAULT NOW(),
                 UNIQUE(usuario_id, lugar_id)
             );
 
-            CREATE TABLE IF NOT EXISTS resenas (
+            CREATE TABLE resenas (
                 id SERIAL PRIMARY KEY,
-                usuario_id INTEGER REFERENCES usuarios(id),
+                usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
                 lugar_id TEXT NOT NULL,
-                comentario TEXT,
-                rating INTEGER NOT NULL,
-                fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                comentario TEXT NOT NULL,
+                rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+                creado_en TIMESTAMP DEFAULT NOW()
             );
         `);
-        console.log("✅ Tablas reconstruidas y listas.");
+        console.log("✅ Tablas reconstruidas desde cero.");
     } catch (err) {
         console.error("❌ Error en reconstrucción:", err.message);
     }
@@ -72,137 +64,12 @@ pool.connect()
 app.use(cors());
 app.use(express.json());
 
-// 🔥 ENDPOINT ACTUALIZAR PERFIL
-app.put('/api/user/update/:id', async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { nombre, email, avatar } = req.body;
-        if (!nombre || !email) return res.status(400).json({ error: 'Datos incompletos' });
-
-        await pool.query(
-            'UPDATE usuarios SET nombre = $1, email = $2, avatar = $3 WHERE id = $4',
-            [nombre.trim(), email.toLowerCase().trim(), avatar, id]
-        );
-        res.json({ message: 'Perfil actualizado' });
-    } catch (error) {
-        res.status(500).json({ error: 'Error actualizando perfil' });
-    }
-});
-
-// --- ENDPOINTS RESEÑAS ---
-
-app.get('/api/resenas/:lugarId', async (req, res) => {
-    try {
-        const { lugarId } = req.params;
-        const { rows } = await pool.query(
-            'SELECT r.*, u.nombre as usuario_nombre_real FROM resenas r LEFT JOIN usuarios u ON r.usuario_id = u.id WHERE r.lugar_id = $1 ORDER BY r.fecha DESC',
-            [lugarId]
-        );
-        res.json(rows.map(r => ({
-            id: r.id,
-            lugar_id: r.lugar_id,
-            usuario: r.usuario_nombre_real || "Anónimo",
-            comentario: r.comentario,
-            rating: r.rating,
-            fecha: r.fecha
-        })));
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-app.post('/api/resenas', async (req, res) => {
-    try {
-        console.log("📥 BODY RESEÑA RECIBIDA:", req.body);
-        const { usuario_id, lugar_id, comentario, rating } = req.body;
-
-        if (!usuario_id || !lugar_id || rating === undefined) {
-            console.log("⚠️ Error: Faltan campos obligatorios", { usuario_id, lugar_id, rating });
-            return res.status(400).json({ error: "Datos incompletos (usuario, lugar o rating)" });
-        }
-
-        const query = 'INSERT INTO resenas (usuario_id, lugar_id, comentario, rating) VALUES ($1, $2, $3, $4)';
-        await pool.query(query, [usuario_id, lugar_id, comentario || '', rating]);
-
-        console.log("✅ Reseña guardada con éxito");
-        res.status(201).json({ ok: true, message: "Reseña guardada" });
-    } catch (error) {
-        console.error("❌ ERROR AL GUARDAR RESEÑA:", error.message);
-        res.status(500).json({ error: "Error interno del servidor: " + error.message });
-    }
-});
-
-// --- ENDPOINTS FAVORITOS ---
-
-app.post('/api/favoritos', async (req, res) => {
-    try {
-        console.log("📥 BODY FAVORITOS:", req.body);
-        const { usuario_id, lugar_id, nombre, imagen, categoria } = req.body;
-
-        if (!usuario_id || !lugar_id) {
-            return res.status(400).json({ error: "Faltan datos" });
-        }
-
-        await pool.query(
-            `INSERT INTO favoritos (usuario_id, lugar_id, nombre, imagen, categoria)
-             VALUES ($1, $2, $3, $4, $5)
-             ON CONFLICT (usuario_id, lugar_id) DO NOTHING`,
-            [usuario_id, lugar_id, nombre, imagen, categoria]
-        );
-
-        res.json({ ok: true, message: "OK" });
-    } catch (error) {
-        console.error("❌ ERROR FAVORITOS:", error.message);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-app.delete('/api/favoritos/:userId/:lugarId', async (req, res) => {
-    try {
-        const { userId, lugarId } = req.params;
-        await pool.query(
-            'DELETE FROM favoritos WHERE usuario_id = $1 AND lugar_id = $2',
-            [userId, lugarId]
-        );
-        res.json({ message: 'Eliminado' });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-app.get('/api/favoritos/:userId/:lugarId', async (req, res) => {
-    try {
-        const { userId, lugarId } = req.params;
-        const result = await pool.query(
-            'SELECT * FROM favoritos WHERE usuario_id = $1 AND lugar_id = $2',
-            [userId, lugarId]
-        );
-        res.json({ isFavorite: result.rows.length > 0 });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// --- OTROS ENDPOINTS (STATS, AUTH, LUGARES) ---
-
-app.get('/api/user/stats/:userId', async (req, res) => {
-    try {
-        const { userId } = req.params;
-        const resenas = await pool.query('SELECT COUNT(*) FROM resenas WHERE usuario_id = $1', [userId]);
-        const favoritos = await pool.query('SELECT COUNT(*) FROM favoritos WHERE usuario_id = $1', [userId]);
-        res.json({
-            resenas: parseInt(resenas.rows[0].count),
-            favoritos: parseInt(favoritos.rows[0].count),
-        });
-    } catch (error) { res.status(500).json({ error: error.message }); }
-});
-
+// --- AUTH ---
 app.post('/api/auth/register', async (req, res) => {
     try {
         const { nombre, email, password } = req.body;
-        const cleanEmail = email.toLowerCase().trim();
         const hashedPassword = await bcrypt.hash(password, 10);
-        await pool.query('INSERT INTO usuarios (nombre, email, password) VALUES ($1, $2, $3)', [nombre.trim(), cleanEmail, hashedPassword]);
+        await pool.query('INSERT INTO usuarios (nombre, email, password) VALUES ($1, $2, $3)', [nombre, email.toLowerCase().trim(), hashedPassword]);
         res.status(201).json({ message: 'Usuario creado' });
     } catch (error) { res.status(500).json({ error: error.message }); }
 });
@@ -220,28 +87,84 @@ app.post('/api/auth/login', async (req, res) => {
     } catch (err) { res.status(500).json({ error: "Error interno" }); }
 });
 
+// --- PERFIL ---
+app.put('/api/user/update/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { nombre, email, avatar } = req.body;
+        await pool.query('UPDATE usuarios SET nombre = $1, email = $2, avatar = $3 WHERE id = $4', [nombre, email, avatar, id]);
+        res.json({ ok: true });
+    } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+// --- FAVORITOS ---
+app.post('/api/favoritos', async (req, res) => {
+    try {
+        const { usuario_id, lugar_id } = req.body;
+        await pool.query('INSERT INTO favoritos (usuario_id, lugar_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [usuario_id, lugar_id]);
+        res.json({ ok: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/favoritos/:userId/:lugarId', async (req, res) => {
+    try {
+        const { userId, lugarId } = req.params;
+        await pool.query('DELETE FROM favoritos WHERE usuario_id = $1 AND lugar_id = $2', [userId, lugarId]);
+        res.json({ ok: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/favoritos/:userId/:lugarId', async (req, res) => {
+    try {
+        const { userId, lugarId } = req.params;
+        const result = await pool.query('SELECT 1 FROM favoritos WHERE usuario_id=$1 AND lugar_id=$2', [userId, lugarId]);
+        res.json({ isFavorite: result.rows.length > 0 });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// --- RESEÑAS ---
+app.post('/api/resenas', async (req, res) => {
+    try {
+        const { usuario_id, lugar_id, comentario, rating } = req.body;
+        await pool.query('INSERT INTO resenas (usuario_id, lugar_id, comentario, rating) VALUES ($1, $2, $3, $4)', [usuario_id, lugar_id, comentario, rating]);
+        res.json({ ok: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/resenas/:lugarId', async (req, res) => {
+    try {
+        const { lugarId } = req.params;
+        const result = await pool.query(`
+            SELECT r.*, u.nombre as usuario, u.avatar
+            FROM resenas r
+            JOIN usuarios u ON r.usuario_id = u.id
+            WHERE r.lugar_id=$1
+            ORDER BY r.creado_en DESC`, [lugarId]);
+        res.json(result.rows);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// --- GOOGLE PLACES PROXY ---
 app.get('/lugares', async (req, res) => {
     const { lat, lng } = req.query;
     try {
         const location = lat && lng ? `${lat},${lng}` : "3.4516,-76.5320";
         const response = await axios.get(`https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location}&radius=2000&type=restaurant&key=${GOOGLE_API_KEY}`);
         res.json(response.data.results.map(p => ({
-            id: p.place_id, nombre: p.name, latitud: p.geometry.location.lat, longitud: p.geometry.location.lng, imagen: p.photos ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${p.photos[0].photo_reference}&key=${GOOGLE_API_KEY}` : ""
+            id: p.place_id, nombre: p.name, latitud: p.geometry.location.lat, longitud: p.geometry.location.lng,
+            imagen: p.photos ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${p.photos[0].photo_reference}&key=${GOOGLE_API_KEY}` : "",
+            rating: p.rating, descripcion: p.vicinity
         })));
     } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-app.get('/api/favoritos/user/:userId', async (req, res) => {
+app.get('/api/user/stats/:userId', async (req, res) => {
     try {
         const { userId } = req.params;
-        const { rows } = await pool.query(
-            'SELECT lugar_id as id, nombre, imagen, categoria FROM favoritos WHERE usuario_id = $1 ORDER BY fecha DESC',
-            [userId]
-        );
-        res.json(rows);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
+        const resenas = await pool.query('SELECT COUNT(*) FROM resenas WHERE usuario_id = $1', [userId]);
+        const favoritos = await pool.query('SELECT COUNT(*) FROM favoritos WHERE usuario_id = $1', [userId]);
+        res.json({ resenas: parseInt(resenas.rows[0].count), favoritos: parseInt(favoritos.rows[0].count) });
+    } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-app.listen(PORT, () => console.log(`🚀 Servidor en puerto ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Servidor reconstruido en puerto ${PORT}`));

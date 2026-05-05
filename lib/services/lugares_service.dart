@@ -27,7 +27,7 @@ class LugaresService {
     return [];
   }
 
-  // --- RESEÑAS ---
+  // --- RESEÑAS (RECONSTRUCCIÓN LIMPIA) ---
   Future<List<Resena>> getResenas(String lugarId) async {
     try {
       final url = Uri.parse("${ApiConstants.baseUrl}/api/resenas/$lugarId");
@@ -46,61 +46,57 @@ class LugaresService {
       if (userId == null) return false;
 
       final url = Uri.parse("${ApiConstants.baseUrl}/api/resenas");
-      final body = jsonEncode({
-        'usuario_id': userId,
-        'lugar_id': lugarId,
-        'comentario': comentario,
-        'rating': rating,
-      });
-
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
-        body: body,
+        body: jsonEncode({
+          'usuario_id': userId,
+          'lugar_id': lugarId,
+          'comentario': comentario,
+          'rating': rating,
+        }),
       );
 
-      return response.statusCode == 201;
+      return response.statusCode == 201 || response.statusCode == 200;
     } catch (e) {
       debugPrint("Error agregarResena: $e");
       return false;
     }
   }
 
-  // --- FAVORITOS (RE-LIMPIADO) ---
-  // Se recomienda usar FavoritosService para esto, pero mantenemos compatibilidad básica si es necesario.
+  // --- FAVORITOS (RECONSTRUCCIÓN LIMPIA) ---
   Future<bool> esFavorito(String lugarId) async {
     final userId = await _authService.getUserId();
     if (userId == null) return false;
-    final response = await http.get(Uri.parse("${ApiConstants.baseUrl}/api/favoritos/$userId/$lugarId"));
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      return data['isFavorite'] ?? false;
-    }
+    
+    try {
+      final response = await http.get(Uri.parse("${ApiConstants.baseUrl}/api/favoritos/$userId/$lugarId"));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['isFavorite'] ?? false;
+      }
+    } catch (e) { debugPrint("Error esFavorito: $e"); }
     return false;
   }
 
-  Future<bool> toggleFavorito(Place place, bool yaEsFavorito) async {
-    try {
-      final userId = await _authService.getUserId();
-      if (userId == null) return false;
+  Future<bool> toggleFavorito(String lugarId, bool actualmenteEsFavorito) async {
+    final userId = await _authService.getUserId();
+    if (userId == null) return false;
 
-      if (yaEsFavorito) {
-        final url = Uri.parse("${ApiConstants.baseUrl}/api/favoritos/$userId/${place.id}");
+    try {
+      if (actualmenteEsFavorito) {
+        final url = Uri.parse("${ApiConstants.baseUrl}/api/favoritos/$userId/$lugarId");
         final response = await http.delete(url);
         return response.statusCode == 200;
       } else {
         final url = Uri.parse("${ApiConstants.baseUrl}/api/favoritos");
-        final body = jsonEncode({
-          'usuario_id': userId,
-          'lugar_id': place.id,
-          'nombre': place.nombre,
-          'imagen': place.imagenUrl,
-          'categoria': place.categoria,
-        });
         final response = await http.post(
           url,
           headers: {'Content-Type': 'application/json'},
-          body: body,
+          body: jsonEncode({
+            'usuario_id': userId,
+            'lugar_id': lugarId,
+          }),
         );
         return response.statusCode == 201 || response.statusCode == 200;
       }

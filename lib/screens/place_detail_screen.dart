@@ -5,7 +5,6 @@ import 'package:url_launcher/url_launcher.dart';
 import '../models/place_model.dart';
 import '../models/resena_model.dart';
 import '../services/lugares_service.dart';
-import '../services/favoritos_service.dart'; // 🔥 AÑADIDO
 
 class PlaceDetailScreen extends StatefulWidget {
   final Place place;
@@ -17,7 +16,6 @@ class PlaceDetailScreen extends StatefulWidget {
 
 class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
   final LugaresService _service = LugaresService();
-  final FavoritosService _favoritosService = FavoritosService(); // 🔥 AÑADIDO
   final TextEditingController _controller = TextEditingController();
   
   List<Resena> _resenas = [];
@@ -40,11 +38,9 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
   }
 
   Future<void> _checkFavorite() async {
-    final result = await _favoritosService.checkFavorito(widget.place.id.toString());
+    final result = await _service.esFavorito(widget.place.id.toString());
     if (mounted) {
-      setState(() {
-        _isFavorite = result;
-      });
+      setState(() => _isFavorite = result);
     }
   }
 
@@ -62,36 +58,51 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
     }
 
     setState(() => _favoriteLoading = true);
-    final success = await _favoritosService.toggleFavorito(
-      widget.place.id.toString(), 
-      actualmenteEsFavorito: _isFavorite,
-      place: widget.place
-    );
+    final success = await _service.toggleFavorito(widget.place.id.toString(), _isFavorite);
 
     if (mounted) {
       if (success) {
-        setState(() {
-          _isFavorite = !_isFavorite;
-        });
+        setState(() => _isFavorite = !_isFavorite);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(_isFavorite ? "Añadido a favoritos" : "Eliminado de favoritos"), duration: const Duration(seconds: 1)),
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Error al actualizar favoritos")),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Error al actualizar favoritos")));
       }
       setState(() => _favoriteLoading = false);
     }
   }
 
   Future<void> _cargarResenas() async {
-    final r = await _service.getResenas(widget.place.id);
+    final r = await _service.getResenas(widget.place.id.toString());
     if (mounted) {
       setState(() {
         _resenas = r;
         _loading = false;
       });
+    }
+  }
+
+  Future<void> _enviarResena() async {
+    final userId = await _service.getAuthService().getUserId();
+    if (userId == null) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Inicia sesión para comentar"), backgroundColor: Colors.orange));
+      return;
+    }
+
+    if (_rating == 0 || _controller.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Completa estrellas y comentario")));
+      return;
+    }
+
+    final success = await _service.agregarResenaConRating(widget.place.id.toString(), _controller.text.trim(), _rating);
+
+    if (success) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("¡Reseña guardada!")));
+      setState(() { _rating = 0; _controller.clear(); });
+      _cargarResenas();
+    } else {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Error al enviar reseña")));
     }
   }
 
@@ -101,7 +112,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(place.nombre, style: const TextStyle(color: Colors.white)),
+        title: Text(place.nombre, style: const TextStyle(color: Colors.white, fontSize: 18)),
         backgroundColor: const Color(0xFF1A73E8),
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
@@ -119,103 +130,26 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
       ),
       body: SingleChildScrollView(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            CachedNetworkImage(
-              imageUrl: place.imagenUrl,
-              width: double.infinity,
-              height: 220,
-              fit: BoxFit.cover,
-              placeholder: (context, url) => Container(color: Colors.grey[200]),
-              errorWidget: (context, url, error) => Container(
-                color: Colors.grey[200],
-                child: const Icon(Icons.image_not_supported, size: 50),
-              ),
-            ),
-
+            _buildHeroImage(place),
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(place.nombre, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 10),
-                  Text("📍 ${place.descripcion}", style: TextStyle(color: Colors.grey[700], fontSize: 14)),
-                  const SizedBox(height: 15),
-
-                  Row(
-                    children: [
-                      ...List.generate(5, (index) => Icon(
-                        index < place.rating.round() ? Icons.star : Icons.star_border,
-                        color: Colors.amber, size: 24,
-                      )),
-                      const SizedBox(width: 8),
-                      Text(place.rating.toString(), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  const Divider(),
-                  const Text("Reseñas", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 15),
-
-                  _loading
-                      ? const Center(child: CircularProgressIndicator())
-                      : _resenas.isEmpty
-                          ? const Text("Aún no hay reseñas para este lugar.", style: TextStyle(color: Colors.grey))
-                          : Column(children: _resenas.map((r) => _buildResenaCard(r)).toList()),
-                  
-                  const SizedBox(height: 30),
-                  const Divider(),
-                  const Text("Danos tu opinión", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 10),
-                  
-                  Row(
-                    children: List.generate(5, (index) => IconButton(
-                      icon: Icon(index < _rating ? Icons.star : Icons.star_border, color: Colors.amber),
-                      onPressed: () => setState(() => _rating = index + 1),
-                    )),
-                  ),
-                  
-                  TextField(
-                    controller: _controller,
-                    decoration: const InputDecoration(hintText: "Escribe tu comentario...", border: OutlineInputBorder()),
-                    maxLines: 3,
-                  ),
-                  const SizedBox(height: 15),
-                  
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        final userId = await _service.getAuthService().getUserId();
-                        if (userId == null) {
-                          if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Debes iniciar sesión para comentar"), backgroundColor: Colors.orange));
-                          return;
-                        }
-
-                        if (_rating == 0 || _controller.text.isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Completa todos los campos")));
-                          return;
-                        }
-
-                        final success = await _service.agregarResenaConRating(widget.place.id, _controller.text, _rating);
-
-                        if (success) {
-                          if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Reseña guardada")));
-                          setState(() { _rating = 0; _controller.clear(); });
-                          _cargarResenas();
-                        } else {
-                          if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Error al enviar reseña")));
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1A73E8), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12)),
-                      child: const Text("Enviar reseña"),
-                    ),
-                  ),
-
-                  const SizedBox(height: 30),
+                  const SizedBox(height: 8),
+                  Text("📍 ${place.descripcion}", style: TextStyle(color: Colors.grey[700])),
+                  const Divider(height: 32),
+                  const Text("Reseñas de la comunidad", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 16),
+                  _buildResenasList(),
+                  const Divider(height: 48),
+                  const Text("Danos tu calificación", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  _buildReviewForm(),
+                  const SizedBox(height: 32),
                   _buildMapButton(place),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 32),
                 ],
               ),
             ),
@@ -225,29 +159,69 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
     );
   }
 
-  Widget _buildResenaCard(Resena r) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(10)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+  Widget _buildHeroImage(Place place) {
+    return CachedNetworkImage(
+      imageUrl: place.imagenUrl,
+      width: double.infinity,
+      height: 220,
+      fit: BoxFit.cover,
+      placeholder: (context, url) => Container(color: Colors.grey[200]),
+      errorWidget: (context, url, error) => Container(color: Colors.grey[200], child: const Icon(Icons.image_not_supported, size: 50)),
+    );
+  }
+
+  Widget _buildResenasList() {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_resenas.isEmpty) return const Text("Aún no hay reseñas. ¡Sé el primero!", style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic));
+    
+    return Column(
+      children: _resenas.map((r) => Card(
+        margin: const EdgeInsets.only(bottom: 12),
+        elevation: 0,
+        color: Colors.grey[50],
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.grey[200]!)),
+        child: ListTile(
+          leading: CircleAvatar(backgroundImage: NetworkImage(r.avatar)),
+          title: Text(r.usuario, style: const TextStyle(fontWeight: FontWeight.bold)),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const CircleAvatar(radius: 15, backgroundColor: Color(0xFF1A73E8), child: Icon(Icons.person, size: 18, color: Colors.white)),
-              const SizedBox(width: 10),
-              Text(r.usuario, style: const TextStyle(fontWeight: FontWeight.bold)),
+              Row(children: List.generate(5, (i) => Icon(i < r.rating ? Icons.star : Icons.star_border, color: Colors.amber, size: 14))),
+              const SizedBox(height: 4),
+              Text(r.comentario),
             ],
           ),
-          const SizedBox(height: 8),
-          Row(
-            children: List.generate(5, (i) => Icon(i < r.rating ? Icons.star : Icons.star_border, color: Colors.amber, size: 14)),
+        ),
+      )).toList(),
+    );
+  }
+
+  Widget _buildReviewForm() {
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(5, (index) => IconButton(
+            icon: Icon(index < _rating ? Icons.star : Icons.star_border, color: Colors.amber, size: 32),
+            onPressed: () => setState(() => _rating = index + 1),
+          )),
+        ),
+        TextField(
+          controller: _controller,
+          decoration: const InputDecoration(hintText: "Escribe tu experiencia aquí...", border: OutlineInputBorder()),
+          maxLines: 3,
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: ElevatedButton(
+            onPressed: _enviarResena,
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1A73E8), foregroundColor: Colors.white),
+            child: const Text("Publicar reseña", style: TextStyle(fontWeight: FontWeight.bold)),
           ),
-          const SizedBox(height: 5),
-          Text(r.comentario, style: const TextStyle(fontSize: 14)),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -258,12 +232,10 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
       child: ElevatedButton.icon(
         onPressed: () async {
           final url = 'https://www.google.com/maps/search/?api=1&query=${place.lat},${place.lng}';
-          if (await canLaunchUrl(Uri.parse(url))) {
-            await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-          }
+          if (await canLaunchUrl(Uri.parse(url))) await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
         },
         icon: const Icon(Icons.directions, color: Colors.white),
-        label: const Text("CÓMO LLEGAR", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        label: const Text("¿CÓMO LLEGAR?", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         style: ElevatedButton.styleFrom(backgroundColor: Colors.green, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
       ),
     );
