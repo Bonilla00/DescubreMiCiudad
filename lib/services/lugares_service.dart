@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:async';
+import 'package:flutter/foundation.dart'; // 🔥 IMPORTAR PARA debugPrint
 import 'package:http/http.dart' as http;
 import '../constants/api.dart';
 import '../models/place_model.dart';
