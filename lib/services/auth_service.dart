@@ -47,5 +47,15 @@ class AuthService {
     return prefs.getString(_keyEmail);
   }
 
+  Future<Map<String, dynamic>?> getCurrentUser() async {
+    final prefs = await SharedPreferences.getInstance();
+    final logged = prefs.getBool(_keyLoggedIn) ?? false;
+    if (!logged) return null;
+    return {
+      'nombre': prefs.getString(_keyNombre),
+      'email': prefs.getString(_keyEmail),
+    };
+  }
+
   Future<String?> getToken() async => null;
 }

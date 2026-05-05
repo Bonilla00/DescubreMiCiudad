@@ -49,7 +49,6 @@ class LugaresService {
   }
 
   Future<List<Place>> getLugaresCercanos(double lat, double lng) async {
-    // Requerimiento: Mostrar todos sin filtrar por distancia
     return await getLugares();
   }
 
@@ -69,11 +68,11 @@ class LugaresService {
     return null;
   }
 
-  Future<bool> agregarResenaConRating(dynamic lugarId, String comentario, int rating, String token) async {
+  Future<bool> agregarResenaConRating(dynamic lugarId, String comentario, int rating, [String? token]) async {
     try {
       final headers = {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
+        if (token != null) 'Authorization': 'Bearer $token',
       };
       final response = await http.post(
         Uri.parse(ApiConstants.reviews),
