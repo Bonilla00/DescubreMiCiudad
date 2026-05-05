@@ -31,13 +31,20 @@ const runMigrations = async () => {
         // Asegurar que exista la columna foto_url
         await pool.query('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS foto_url TEXT');
 
-        // Insertar los 15 restaurantes de Cali si la tabla está vacía
-        const { rows: countRows } = await pool.query('SELECT COUNT(*) FROM lugares');
-        if (parseInt(countRows[0].count) === 0) {
-            const seedSql = fs.readFileSync(path.join(__dirname, 'src/migrations/seed.sql'), 'utf8');
-            await pool.query(seedSql);
-            console.log('🌱 Seed: 15 restaurantes de Cali insertados.');
-        }
+        // Resetear datos en orden para respetar las FK
+        await pool.query('DELETE FROM favoritos');
+        console.log('🗑️  Favoritos eliminados.');
+        await pool.query('DELETE FROM resenas');
+        console.log('🗑️  Reseñas eliminadas.');
+        await pool.query('DELETE FROM usuarios');
+        console.log('🗑️  Usuarios eliminados.');
+        await pool.query('DELETE FROM lugares');
+        console.log('🗑️  Lugares eliminados.');
+
+        // Insertar los 15 restaurantes reales de Cali
+        const seedSql = fs.readFileSync(path.join(__dirname, 'src/migrations/seed.sql'), 'utf8');
+        await pool.query(seedSql);
+        console.log('🌱 Seed: 15 restaurantes de Cali insertados.');
 
         console.log('✅ Base de datos lista.');
     } catch (err) {
