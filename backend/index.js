@@ -19,51 +19,52 @@ const pool = new Pool({
 });
 
 app.use(cors());
-app.use(express.json()); // 3. ASEGURAR: Parsing de JSON
+app.use(express.json()); // ✅ Tarea 2: Asegurar express.json
 
 const runMigrations = async () => {
     try {
-        // 2. CREAR TABLA SI NO EXISTE: reseñas
+        // ✅ Tarea 3: Crear tabla resenas si no existe (lugar_id como TEXT para flexibilidad)
         await pool.query(`
             CREATE TABLE IF NOT EXISTS resenas (
                 id SERIAL PRIMARY KEY,
-                lugar_id TEXT NOT NULL, -- Cambiado a TEXT para soportar Google Place ID
-                usuario TEXT DEFAULT 'Usuario',
+                lugar_id TEXT NOT NULL,
                 comentario TEXT,
                 rating INTEGER NOT NULL,
                 fecha TIMESTAMP DEFAULT NOW()
             )
         `);
-        console.log('✅ Base de datos lista (Migración de reseñas exitosa).');
+        console.log('✅ Base de datos lista.');
     } catch (err) {
         console.error('❌ Error en migración:', err);
     }
 };
 runMigrations();
 
-// --- 1. CREAR ENDPOINT: POST /reviews ---
+// ✅ Tarea 1 y 4: Endpoint /reviews con Logs
 app.post('/reviews', async (req, res) => {
-    console.log("📥 Recibiendo reseña:", req.body);
+    console.log("📥 BODY RECIBIDO:", req.body); // Logs para debug
     try {
         const { lugar_id, comentario, rating } = req.body;
 
         if (!lugar_id || !comentario || !rating) {
-            return res.status(400).json({ error: 'Datos incompletos: lugar_id, comentario y rating son requeridos' });
+            console.log("⚠️ Datos incompletos");
+            return res.status(400).json({ error: 'Datos incompletos' });
         }
 
         await pool.query(
             'INSERT INTO resenas (lugar_id, comentario, rating) VALUES ($1, $2, $3)',
-            [lugar_id, comentario, rating]
+            [lugar_id.toString(), comentario, rating]
         );
 
-        res.status(201).json({ message: 'Reseña guardada correctamente' });
+        console.log("✅ Reseña guardada");
+        res.status(201).json({ message: 'Reseña guardada' });
     } catch (error) {
-        console.error("❌ Error al guardar reseña:", error.message);
-        res.status(500).json({ error: 'Error al guardar reseña en la base de datos' });
+        console.error('❌ ERROR SQL:', error);
+        res.status(500).json({ error: 'Error al guardar reseña' });
     }
 });
 
-// --- OTROS ENDPOINTS (MANTENIDOS) ---
+// --- OTROS ENDPOINTS ---
 
 app.get('/resenas/:lugarId', async (req, res) => {
     try {
@@ -96,4 +97,7 @@ app.get('/lugares', async (req, res) => {
     } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-app.listen(PORT, () => console.log(`🚀 Servidor en puerto ${PORT}`));
+// ✅ Tarea 5: Puerto para Railway
+app.listen(PORT, () => {
+    console.log(`🚀 Servidor en puerto ${PORT}`);
+});
