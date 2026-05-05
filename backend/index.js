@@ -13,9 +13,7 @@ const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
 
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: process.env.NODE_ENV === 'production'
-        ? { rejectUnauthorized: false }
-        : false
+    ssl: { rejectUnauthorized: false }
 });
 
 app.use(cors());
@@ -34,10 +32,9 @@ const runMigrations = async () => {
 
             CREATE TABLE IF NOT EXISTS resenas (
                 id SERIAL PRIMARY KEY,
-                lugar_id TEXT NOT NULL,
                 usuario_id INTEGER REFERENCES usuarios(id),
-                usuario_nombre TEXT,
-                comentario TEXT NOT NULL,
+                lugar_id TEXT NOT NULL,
+                comentario TEXT,
                 rating INTEGER NOT NULL,
                 fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
@@ -62,19 +59,14 @@ app.put('/api/user/update/:id', async (req, res) => {
     try {
         const { id } = req.params;
         const { nombre, email, avatar } = req.body;
-
-        if (!nombre || !email) {
-            return res.status(400).json({ error: 'Datos incompletos' });
-        }
+        if (!nombre || !email) return res.status(400).json({ error: 'Datos incompletos' });
 
         await pool.query(
             'UPDATE usuarios SET nombre = $1, email = $2, avatar = $3 WHERE id = $4',
             [nombre.trim(), email.toLowerCase().trim(), avatar, id]
         );
-
         res.json({ message: 'Perfil actualizado' });
     } catch (error) {
-        console.error("❌ Error update:", error);
         res.status(500).json({ error: 'Error actualizando perfil' });
     }
 });
@@ -88,16 +80,14 @@ app.get('/api/resenas/:lugarId', async (req, res) => {
             'SELECT r.*, u.nombre as usuario_nombre_real FROM resenas r LEFT JOIN usuarios u ON r.usuario_id = u.id WHERE r.lugar_id = $1 ORDER BY r.fecha DESC',
             [lugarId]
         );
-        // Formatear para el frontend
-        const resenas = rows.map(r => ({
+        res.json(rows.map(r => ({
             id: r.id,
             lugar_id: r.lugar_id,
-            usuario: r.usuario_nombre_real || r.usuario_nombre || "Anónimo",
+            usuario: r.usuario_nombre_real || "Anónimo",
             comentario: r.comentario,
             rating: r.rating,
             fecha: r.fecha
-        }));
-        res.json(resenas);
+        })));
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -105,21 +95,22 @@ app.get('/api/resenas/:lugarId', async (req, res) => {
 
 app.post('/api/resenas', async (req, res) => {
     try {
-        const { lugar_id, usuario_id, usuario_nombre, comentario, rating } = req.body;
+        console.log("📥 BODY RESEÑA:", req.body);
+        const { usuario_id, lugar_id, comentario, rating } = req.body;
 
-        if (!lugar_id || !comentario || !rating) {
+        if (!usuario_id || !lugar_id || !rating) {
             return res.status(400).json({ error: "Datos incompletos" });
         }
 
         await pool.query(
-            'INSERT INTO resenas (lugar_id, usuario_id, usuario_nombre, comentario, rating) VALUES ($1, $2, $3, $4, $5)',
-            [lugar_id, usuario_id, usuario_nombre, comentario, rating]
+            'INSERT INTO resenas (usuario_id, lugar_id, comentario, rating) VALUES ($1, $2, $3, $4)',
+            [usuario_id, lugar_id, comentario, rating]
         );
 
         res.status(201).json({ message: "Reseña guardada" });
     } catch (error) {
-        console.error("❌ Error reseña:", error);
-        res.status(500).json({ error: "Error al guardar reseña" });
+        console.error("❌ ERROR RESEÑA:", error.message);
+        res.status(500).json({ error: error.message });
     }
 });
 
@@ -127,21 +118,20 @@ app.post('/api/resenas', async (req, res) => {
 
 app.post('/api/favoritos', async (req, res) => {
     try {
-        console.log("🔥 BODY FAVORITOS:", req.body);
+        console.log("📥 BODY FAVORITOS:", req.body);
         const { usuario_id, lugar_id } = req.body;
 
         if (!usuario_id || !lugar_id) {
-            console.log("⚠️ Datos incompletos en favoritos");
             return res.status(400).json({ error: "Datos incompletos" });
         }
 
         await pool.query(
-            'INSERT INTO favoritos (usuario_id, lugar_id) VALUES ($1, $2) ON CONFLICT (usuario_id, lugar_id) DO NOTHING',
+            'INSERT INTO favoritos (usuario_id, lugar_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
             [usuario_id, lugar_id]
         );
         res.status(201).json({ message: 'OK' });
     } catch (error) {
-        console.error("❌ ERROR FAVORITO:", error);
+        console.error("❌ ERROR FAVORITO:", error.message);
         res.status(500).json({ error: error.message });
     }
 });
@@ -149,16 +139,13 @@ app.post('/api/favoritos', async (req, res) => {
 app.delete('/api/favoritos/:userId/:lugarId', async (req, res) => {
     try {
         const { userId, lugarId } = req.params;
-        if (!userId || !lugarId) return res.status(400).json({ error: "Datos incompletos" });
-
         await pool.query(
             'DELETE FROM favoritos WHERE usuario_id = $1 AND lugar_id = $2',
             [userId, lugarId]
         );
-        res.json({ message: 'Eliminado de favoritos' });
+        res.json({ message: 'Eliminado' });
     } catch (error) {
-        console.error("❌ Error delete favorito:", error);
-        res.status(500).json({ error: 'Error al eliminar favorito' });
+        res.status(500).json({ error: error.message });
     }
 });
 
