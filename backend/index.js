@@ -11,15 +11,23 @@ const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'mi_secreto_super_seguro';
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
 
+// 🔥 1. CONEXIÓN CORRECTA A POSTGRES (RAILWAY)
+console.log("🛠️ Verificando DATABASE_URL...");
+if (!process.env.DATABASE_URL) {
+    console.error("❌ CRÍTICO: DATABASE_URL no está definida en las variables de entorno.");
+}
+
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false }
 });
 
-app.use(cors());
-app.use(express.json());
+pool.connect()
+    .then(() => console.log("✅ Conectado a PostgreSQL"))
+    .catch(err => console.error("❌ Error conexión DB:", err.message));
 
-const runMigrations = async () => {
+// 🔥 2. CREAR TABLAS AUTOMÁTICAMENTE
+(async () => {
     try {
         await pool.query(`
             CREATE TABLE IF NOT EXISTS usuarios (
@@ -47,12 +55,14 @@ const runMigrations = async () => {
                 UNIQUE(usuario_id, lugar_id)
             );
         `);
-        console.log('✅ Base de datos lista.');
+        console.log("✅ Tablas listas (usuarios, resenas, favoritos)");
     } catch (err) {
-        console.error('❌ Error en migración:', err);
+        console.error("❌ Error en migraciones:", err.message);
     }
-};
-runMigrations();
+})();
+
+app.use(cors());
+app.use(express.json());
 
 // 🔥 ENDPOINT ACTUALIZAR PERFIL
 app.put('/api/user/update/:id', async (req, res) => {
@@ -95,11 +105,11 @@ app.get('/api/resenas/:lugarId', async (req, res) => {
 
 app.post('/api/resenas', async (req, res) => {
     try {
-        console.log("📥 BODY RESEÑA:", req.body);
+        console.log("📥 BODY RESEÑAS:", req.body);
         const { usuario_id, lugar_id, comentario, rating } = req.body;
 
-        if (!usuario_id || !lugar_id || !rating) {
-            return res.status(400).json({ error: "Datos incompletos" });
+        if (!usuario_id || !lugar_id) {
+            return res.status(400).json({ error: "Faltan datos" });
         }
 
         await pool.query(
@@ -107,9 +117,9 @@ app.post('/api/resenas', async (req, res) => {
             [usuario_id, lugar_id, comentario, rating]
         );
 
-        res.status(201).json({ message: "Reseña guardada" });
+        res.json({ ok: true, message: "Reseña guardada" });
     } catch (error) {
-        console.error("❌ ERROR RESEÑA:", error.message);
+        console.error("❌ ERROR RESEÑAS:", error.message);
         res.status(500).json({ error: error.message });
     }
 });
@@ -122,16 +132,17 @@ app.post('/api/favoritos', async (req, res) => {
         const { usuario_id, lugar_id } = req.body;
 
         if (!usuario_id || !lugar_id) {
-            return res.status(400).json({ error: "Datos incompletos" });
+            return res.status(400).json({ error: "Faltan datos" });
         }
 
         await pool.query(
-            'INSERT INTO favoritos (usuario_id, lugar_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+            'INSERT INTO favoritos (usuario_id, lugar_id) VALUES ($1, $2) ON CONFLICT (usuario_id, lugar_id) DO NOTHING',
             [usuario_id, lugar_id]
         );
-        res.status(201).json({ message: 'OK' });
+
+        res.json({ ok: true, message: "OK" });
     } catch (error) {
-        console.error("❌ ERROR FAVORITO:", error.message);
+        console.error("❌ ERROR FAVORITOS:", error.message);
         res.status(500).json({ error: error.message });
     }
 });
