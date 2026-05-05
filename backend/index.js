@@ -57,9 +57,6 @@ app.post('/api/auth/login', async (req, res) => {
             return res.status(401).json({ error: "Credenciales inválidas" });
         }
 
-        // Si usaste bcrypt en register, hay que usar compare.
-        // Si no, comparación directa. Probamos comparación directa por ahora
-        // según el código anterior.
         const user = rows[0];
         if (user.password !== password) {
             console.log("❌ Password incorrecto");
@@ -80,24 +77,42 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
+// 🔥 ENDPOINT DE REGISTRO CON LOGS COMPLETOS
 app.post('/auth/register', async (req, res) => {
     try {
+        console.log("📥 BODY RECIBIDO:", req.body);
         const { nombre, email, password } = req.body;
-        if (!nombre || !email || !password) return res.status(400).json({ error: 'Datos incompletos' });
+
+        if (!nombre || !email || !password) {
+            console.log("⚠️ Datos incompletos");
+            return res.status(400).json({ error: 'Datos incompletos' });
+        }
 
         const cleanEmail = email.toLowerCase().trim();
-        const existing = await pool.query('SELECT * FROM usuarios WHERE email = $1', [cleanEmail]);
+        const existing = await pool.query(
+            'SELECT * FROM usuarios WHERE email = $1',
+            [cleanEmail]
+        );
 
-        if (existing.rows.length > 0) return res.status(400).json({ error: 'El correo ya está registrado' });
+        if (existing.rows.length > 0) {
+            console.log("⚠️ El correo ya existe:", cleanEmail);
+            return res.status(400).json({ error: 'El correo ya está registrado' });
+        }
 
         await pool.query(
             'INSERT INTO usuarios (nombre, email, password) VALUES ($1, $2, $3)',
             [nombre.trim(), cleanEmail, password]
         );
 
+        console.log("✅ Usuario creado correctamente:", cleanEmail);
         res.status(201).json({ message: 'Usuario creado correctamente' });
+
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error("❌ ERROR REGISTER:", error);
+        res.status(500).json({
+            error: 'Error interno',
+            detalle: error.message
+        });
     }
 });
 
