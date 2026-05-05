@@ -8,10 +8,9 @@ import 'auth_service.dart';
 class LugaresService {
   final AuthService _authService = AuthService();
 
-  // Helper para obtener headers (sin token obligatorio)
+  // Helper para obtener headers
   Future<Map<String, String>> _getHeaders() async {
     final token = await _authService.getToken();
-    
     return {
       'Content-Type': 'application/json',
       if (token != null) 'Authorization': 'Bearer $token',
@@ -20,16 +19,28 @@ class LugaresService {
 
   Future<List<Place>> getLugares({double? lat, double? lng}) async {
     try {
-      final queryLat = lat ?? 3.4516;
-      final queryLng = lng ?? -76.5320;
-      
-      final url = '${ApiConstants.places}?lat=$queryLat&lng=$queryLng';
-      final headers = await _getHeaders();
+      final response = await http
+          .get(Uri.parse(ApiConstants.places))
+          .timeout(ApiConstants.timeout);
 
-      final response = await http.get(Uri.parse(url), headers: headers).timeout(ApiConstants.timeout);
       if (response.statusCode == 200) {
         List<dynamic> body = jsonDecode(response.body);
-        return body.map((item) => Place.fromJson(item)).toList();
+        
+        return body.map((item) {
+          return Place(
+            id: item['id'],
+            nombre: item['nombre'] ?? '',
+            categoria: item['categoria'] ?? 'Restaurante',
+            precio: item['precio'] ?? '\$',
+            priceLevel: '',
+            rating: double.tryParse(item['rating'].toString()) ?? 0.0,
+            distancia: '',
+            descripcion: item['descripcion'] ?? '',
+            imagenUrl: item['imagen'] ?? 'https://via.placeholder.com/400', 
+            lat: double.tryParse(item['latitud'].toString()) ?? 0.0,
+            lng: double.tryParse(item['longitud'].toString()) ?? 0.0,
+          );
+        }).toList();
       }
     } catch (e) {
       print("Error getLugares: $e");
@@ -38,66 +49,17 @@ class LugaresService {
   }
 
   Future<List<Place>> getLugaresCercanos(double lat, double lng) async {
-    try {
-      final url = '${ApiConstants.places}/cercanos?lat=$lat&lng=$lng';
-      final headers = await _getHeaders();
-
-      final response = await http.get(Uri.parse(url), headers: headers).timeout(ApiConstants.timeout);
-      if (response.statusCode == 200) {
-        List<dynamic> body = jsonDecode(response.body);
-        return body.map((item) => Place.fromJson(item)).toList();
-      }
-    } catch (e) {
-      print("Error getLugaresCercanos: $e");
-    }
-    return [];
+    // Requerimiento: Mostrar todos sin filtrar por distancia
+    return await getLugares();
   }
 
-  Future<List<Place>> getGoogleCercanos(double lat, double lng) async {
+  Future<List<Place>> getGoogleCercanos(double lat, double lng) async => [];
+
+  Future<Map<String, dynamic>?> getLugarById(dynamic id) async {
     try {
-      final url = '${ApiConstants.places}/google-cercanos?lat=$lat&lng=$lng';
-      final headers = await _getHeaders();
-
-      final response = await http.get(Uri.parse(url), headers: headers).timeout(ApiConstants.timeout);
-      if (response.statusCode == 200) {
-        List<dynamic> body = jsonDecode(response.body);
-        return body.map((item) => Place.fromJson(item)).toList();
-      }
-    } catch (e) {
-      print("Error getGoogleCercanos: $e");
-    }
-    return [];
-  }
-
-  Future<List<Place>> buscarLugares({String? q, double? lat, double? lng}) async {
-    try {
-      String url = '${ApiConstants.places}/buscar';
-      List<String> params = [];
-      if (q != null) params.add('q=$q');
-      if (lat != null && lng != null) {
-        params.add('lat=$lat');
-        params.add('lng=$lng');
-      }
-      if (params.isNotEmpty) {
-        url += '?${params.join('&')}';
-      }
-      final headers = await _getHeaders();
-
-      final response = await http.get(Uri.parse(url), headers: headers).timeout(ApiConstants.timeout);
-      if (response.statusCode == 200) {
-        List<dynamic> body = jsonDecode(response.body);
-        return body.map((item) => Place.fromJson(item)).toList();
-      }
-    } catch (e) {
-      print("Error buscarLugares: $e");
-    }
-    return [];
-  }
-
-  Future<Map<String, dynamic>?> getLugarById(int id) async {
-    try {
-      final headers = await _getHeaders();
-      final response = await http.get(Uri.parse('${ApiConstants.places}/$id'), headers: headers).timeout(ApiConstants.timeout);
+      final response = await http
+          .get(Uri.parse('${ApiConstants.places}/$id'))
+          .timeout(ApiConstants.timeout);
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       }
@@ -107,11 +69,11 @@ class LugaresService {
     return null;
   }
 
-  Future<bool> agregarResenaConRating(int lugarId, String comentario, int rating, [String? token]) async {
+  Future<bool> agregarResenaConRating(dynamic lugarId, String comentario, int rating, String token) async {
     try {
       final headers = {
         'Content-Type': 'application/json',
-        if (token != null) 'Authorization': 'Bearer $token',
+        'Authorization': 'Bearer $token',
       };
       final response = await http.post(
         Uri.parse(ApiConstants.reviews),
@@ -122,41 +84,9 @@ class LugaresService {
           'rating': rating,
         }),
       ).timeout(ApiConstants.timeout);
-      return response.statusCode == 201;
+      return response.statusCode == 201 || response.statusCode == 200;
     } catch (e) {
       print("Error agregarResena: $e");
-      return false;
-    }
-  }
-
-  Future<bool> editarResena(int resenaId, String comentario, int rating, String token) async {
-    try {
-      final headers = await _getHeaders();
-      final response = await http.put(
-        Uri.parse('${ApiConstants.reviews}/$resenaId'),
-        headers: headers,
-        body: jsonEncode({
-          'comentario': comentario,
-          'rating': rating,
-        }),
-      ).timeout(ApiConstants.timeout);
-      return response.statusCode == 200;
-    } catch (e) {
-      print("Error editarResena: $e");
-      return false;
-    }
-  }
-
-  Future<bool> eliminarResena(int resenaId, String token) async {
-    try {
-      final headers = await _getHeaders();
-      final response = await http.delete(
-        Uri.parse('${ApiConstants.reviews}/$resenaId'),
-        headers: headers,
-      ).timeout(ApiConstants.timeout);
-      return response.statusCode == 200;
-    } catch (e) {
-      print("Error eliminarResena: $e");
       return false;
     }
   }
