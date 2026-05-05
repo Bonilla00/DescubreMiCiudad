@@ -19,7 +19,7 @@ const pool = new Pool({
 });
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json()); // ✅ Middleware asegurado
 
 const runMigrations = async () => {
     try {
@@ -39,11 +39,47 @@ const runMigrations = async () => {
 };
 runMigrations();
 
-// 🔥 ENDPOINT DE LOGIN CORREGIDO
+// --- AUTH ROUTES UNIFICADAS (/api/auth) ---
+
+// ✅ REGISTER CORREGIDO Y UNIFICADO
+app.post('/api/auth/register', async (req, res) => {
+    try {
+        console.log("📥 BODY REGISTER:", req.body);
+        const { nombre, email, password } = req.body;
+
+        if (!nombre || !email || !password) {
+            return res.status(400).json({ error: 'Datos incompletos' });
+        }
+
+        const cleanEmail = email.toLowerCase().trim();
+        const existing = await pool.query('SELECT * FROM usuarios WHERE email = $1', [cleanEmail]);
+
+        if (existing.rows.length > 0) {
+            return res.status(400).json({ error: 'El correo ya está registrado' });
+        }
+
+        // Mejor práctica: Encriptar contraseña
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        await pool.query(
+            'INSERT INTO usuarios (nombre, email, password) VALUES ($1, $2, $3)',
+            [nombre.trim(), cleanEmail, hashedPassword]
+        );
+
+        console.log("✅ Registro exitoso:", cleanEmail);
+        res.status(201).json({ message: 'Usuario creado correctamente' });
+
+    } catch (error) {
+        console.error("❌ ERROR REGISTER:", error);
+        res.status(500).json({ error: 'Error interno', detalle: error.message });
+    }
+});
+
+// ✅ LOGIN UNIFICADO Y SEGURO (CON BCRYPT)
 app.post('/api/auth/login', async (req, res) => {
     try {
         const { email, password } = req.body;
-        console.log("🔑 Intento de login para:", email);
+        console.log("🔑 Intento de login:", email);
 
         if (!email || !password) {
             return res.status(400).json({ error: "Email y password requeridos" });
@@ -53,19 +89,20 @@ app.post('/api/auth/login', async (req, res) => {
         const { rows } = await pool.query('SELECT * FROM usuarios WHERE email = $1', [cleanEmail]);
 
         if (rows.length === 0) {
-            console.log("❌ Usuario no encontrado");
             return res.status(401).json({ error: "Credenciales inválidas" });
         }
 
         const user = rows[0];
-        if (user.password !== password) {
-            console.log("❌ Password incorrecto");
+
+        // Verificación con bcrypt para mayor seguridad
+        const validPassword = await bcrypt.compare(password, user.password);
+        if (!validPassword) {
             return res.status(401).json({ error: "Credenciales inválidas" });
         }
 
         const token = jwt.sign({ userId: user.id, nombre: user.nombre }, JWT_SECRET, { expiresIn: '30d' });
 
-        console.log("✅ Login exitoso");
+        console.log("✅ Login exitoso:", cleanEmail);
         res.json({
             token,
             user: { id: user.id, nombre: user.nombre, avatar: user.avatar }
@@ -74,45 +111,6 @@ app.post('/api/auth/login', async (req, res) => {
     } catch (err) {
         console.error("❌ ERROR LOGIN:", err);
         res.status(500).json({ error: "Error interno" });
-    }
-});
-
-// 🔥 ENDPOINT DE REGISTRO CON LOGS COMPLETOS
-app.post('/auth/register', async (req, res) => {
-    try {
-        console.log("📥 BODY RECIBIDO:", req.body);
-        const { nombre, email, password } = req.body;
-
-        if (!nombre || !email || !password) {
-            console.log("⚠️ Datos incompletos");
-            return res.status(400).json({ error: 'Datos incompletos' });
-        }
-
-        const cleanEmail = email.toLowerCase().trim();
-        const existing = await pool.query(
-            'SELECT * FROM usuarios WHERE email = $1',
-            [cleanEmail]
-        );
-
-        if (existing.rows.length > 0) {
-            console.log("⚠️ El correo ya existe:", cleanEmail);
-            return res.status(400).json({ error: 'El correo ya está registrado' });
-        }
-
-        await pool.query(
-            'INSERT INTO usuarios (nombre, email, password) VALUES ($1, $2, $3)',
-            [nombre.trim(), cleanEmail, password]
-        );
-
-        console.log("✅ Usuario creado correctamente:", cleanEmail);
-        res.status(201).json({ message: 'Usuario creado correctamente' });
-
-    } catch (error) {
-        console.error("❌ ERROR REGISTER:", error);
-        res.status(500).json({
-            error: 'Error interno',
-            detalle: error.message
-        });
     }
 });
 
