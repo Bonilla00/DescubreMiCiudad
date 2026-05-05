@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/place_model.dart';
 import '../models/resena_model.dart';
 import '../services/lugares_service.dart';
@@ -15,8 +16,11 @@ class PlaceDetailScreen extends StatefulWidget {
 
 class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
   final LugaresService _service = LugaresService();
+  final TextEditingController _controller = TextEditingController();
+  
   List<Resena> _resenas = [];
   bool _loading = true;
+  int _rating = 0;
 
   @override
   void initState() {
@@ -54,7 +58,6 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 2. IMAGEN PRINCIPAL ARRIBA
             CachedNetworkImage(
               imageUrl: place.imagenUrl,
               width: double.infinity,
@@ -67,13 +70,11 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
               ),
             ),
 
-            // 3. CONTENIDO CON PADDING
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 4. NOMBRE DEL LUGAR
                   Text(
                     place.nombre,
                     style: const TextStyle(
@@ -83,14 +84,12 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
                   ),
                   const SizedBox(height: 10),
 
-                  // 5. DIRECCIÓN / DESCRIPCIÓN CORTA
                   Text(
                     "📍 ${place.descripcion}",
                     style: TextStyle(color: Colors.grey[700], fontSize: 14),
                   ),
                   const SizedBox(height: 15),
 
-                  // 6. RATING CON ESTRELLAS
                   Row(
                     children: [
                       ...List.generate(5, (index) {
@@ -114,14 +113,12 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
                   const Divider(),
                   const SizedBox(height: 10),
 
-                  // 7. SECCIÓN RESEÑAS
                   const Text(
                     "Reseñas",
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 15),
 
-                  // LISTA DE RESEÑAS (UI LIMPIA)
                   _loading
                       ? const Center(child: CircularProgressIndicator())
                       : _resenas.isEmpty
@@ -131,6 +128,93 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
                               children: _resenas.map((r) => _buildResenaCard(r)).toList(),
                             ),
                   
+                  // --- FORMULARIO DE RESEÑAS ---
+                  const SizedBox(height: 30),
+                  const Divider(),
+                  const Text(
+                    "Danos tu opinión",
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 10),
+                  
+                  // WIDGET DE ESTRELLAS
+                  Row(
+                    children: List.generate(5, (index) {
+                      return IconButton(
+                        icon: Icon(
+                          index < _rating ? Icons.star : Icons.star_border,
+                          color: Colors.amber,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _rating = index + 1;
+                          });
+                        },
+                      );
+                    }),
+                  ),
+                  const SizedBox(height: 10),
+                  
+                  // CAMPO DE TEXTO
+                  TextField(
+                    controller: _controller,
+                    decoration: const InputDecoration(
+                      hintText: "Escribe tu comentario...",
+                      border: OutlineInputBorder(),
+                    ),
+                    maxLines: 3,
+                  ),
+                  const SizedBox(height: 15),
+                  
+                  // BOTÓN ENVIAR
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        if (_rating == 0 || _controller.text.isEmpty) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text("Completa todos los campos")),
+                          );
+                          return;
+                        }
+
+                        final success = await _service.agregarResenaConRating(
+                          place.id,
+                          _controller.text,
+                          _rating,
+                        );
+
+                        if (success) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text("Reseña enviada")),
+                            );
+                          }
+
+                          setState(() {
+                            _rating = 0;
+                            _controller.clear();
+                          });
+                          
+                          // Recargar reseñas para mostrar la nueva
+                          _cargarResenas();
+                        } else {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text("Error al enviar")),
+                            );
+                          }
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1A73E8),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: const Text("Enviar reseña"),
+                    ),
+                  ),
+
                   const SizedBox(height: 30),
                   _buildMapButton(place),
                   const SizedBox(height: 20),
@@ -186,12 +270,15 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
       height: 48,
       child: ElevatedButton.icon(
         onPressed: () async {
-          // Lógica de mapa mantenida
+          final url = 'https://www.google.com/maps/search/?api=1&query=${place.lat},${place.lng}';
+          if (await canLaunchUrl(Uri.parse(url))) {
+            await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+          }
         },
         icon: const Icon(Icons.directions, color: Colors.white),
         label: const Text("CÓMO LLEGAR", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF1A73E8),
+          backgroundColor: Colors.green,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
       ),
