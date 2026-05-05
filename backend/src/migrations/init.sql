@@ -18,7 +18,12 @@ CREATE TABLE IF NOT EXISTS lugares (
   descripcion TEXT NOT NULL,
   imagen_url TEXT NOT NULL,
   lat DECIMAL(10,7) NOT NULL,
-  lng DECIMAL(10,7) NOT NULL
+  lng DECIMAL(10,7) NOT NULL,
+  imagen TEXT,
+  latitud DOUBLE PRECISION,
+  longitud DOUBLE PRECISION,
+  direccion TEXT,
+  como_llegar TEXT
 );
 
 CREATE TABLE IF NOT EXISTS resenas (

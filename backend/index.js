@@ -31,6 +31,13 @@ const runMigrations = async () => {
         // Asegurar que exista la columna foto_url
         await pool.query('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS foto_url TEXT');
 
+        // Asegurar que existan las nuevas columnas de lugares
+        await pool.query('ALTER TABLE lugares ADD COLUMN IF NOT EXISTS imagen TEXT');
+        await pool.query('ALTER TABLE lugares ADD COLUMN IF NOT EXISTS latitud DOUBLE PRECISION');
+        await pool.query('ALTER TABLE lugares ADD COLUMN IF NOT EXISTS longitud DOUBLE PRECISION');
+        await pool.query('ALTER TABLE lugares ADD COLUMN IF NOT EXISTS direccion TEXT');
+        await pool.query('ALTER TABLE lugares ADD COLUMN IF NOT EXISTS como_llegar TEXT');
+
         // Insertar los 15 restaurantes de Cali si la tabla está vacía
         const { rows: countRows } = await pool.query('SELECT COUNT(*) FROM lugares');
         if (parseInt(countRows[0].count) === 0) {
