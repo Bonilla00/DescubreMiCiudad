@@ -127,17 +127,22 @@ app.post('/api/resenas', async (req, res) => {
 
 app.post('/api/favoritos', async (req, res) => {
     try {
+        console.log("🔥 BODY FAVORITOS:", req.body);
         const { usuario_id, lugar_id } = req.body;
-        if (!usuario_id || !lugar_id) return res.status(400).json({ error: "Datos incompletos" });
+
+        if (!usuario_id || !lugar_id) {
+            console.log("⚠️ Datos incompletos en favoritos");
+            return res.status(400).json({ error: "Datos incompletos" });
+        }
 
         await pool.query(
             'INSERT INTO favoritos (usuario_id, lugar_id) VALUES ($1, $2) ON CONFLICT (usuario_id, lugar_id) DO NOTHING',
             [usuario_id, lugar_id]
         );
-        res.status(201).json({ message: 'Agregado a favoritos' });
+        res.status(201).json({ message: 'OK' });
     } catch (error) {
-        console.error("❌ Error add favorito:", error);
-        res.status(500).json({ error: 'Error al agregar a favoritos' });
+        console.error("❌ ERROR FAVORITO:", error);
+        res.status(500).json({ error: error.message });
     }
 });
 

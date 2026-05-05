@@ -50,6 +50,11 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
     if (_favoriteLoading) return;
 
     setState(() => _favoriteLoading = true);
+    
+    // 🔥 LOGS PARA DEPURACIÓN
+    final userId = await _service.getAuthService().getUserId();
+    debugPrint("DEBUG FAVORITOS - USER ID: $userId");
+    debugPrint("DEBUG FAVORITOS - PLACE ID: ${widget.place.id}");
 
     final success = await _service.toggleFavorito(widget.place.id, _isFavorite);
 

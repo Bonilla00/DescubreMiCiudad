@@ -9,6 +9,9 @@ import 'auth_service.dart';
 class LugaresService {
   final AuthService _authService = AuthService();
 
+  // Expone el servicio para los logs en UI
+  AuthService getAuthService() => _authService;
+
   // --- LUGARES ---
   Future<List<Place>> getLugares({double? lat, double? lng}) async {
     try {
@@ -96,13 +99,15 @@ class LugaresService {
 
       if (yaEsFavorito) {
         final url = Uri.parse("${ApiConstants.baseUrl}/api/favoritos/$userId/$lugarId");
+        debugPrint("DELETE FAVORITO URL: $url");
         final response = await http.delete(url, headers: headers);
         return response.statusCode == 200;
       } else {
         final url = Uri.parse("${ApiConstants.baseUrl}/api/favoritos");
         final body = jsonEncode({'usuario_id': userId, 'lugar_id': lugarId});
+        debugPrint("POST FAVORITO BODY: $body");
         final response = await http.post(url, headers: headers, body: body);
-        return response.statusCode == 201;
+        return response.statusCode == 201 || response.statusCode == 200;
       }
     } catch (e) {
       print("Error toggleFavorito: $e");
