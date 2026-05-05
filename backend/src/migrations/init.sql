@@ -10,20 +10,15 @@ CREATE TABLE IF NOT EXISTS usuarios (
 CREATE TABLE IF NOT EXISTS lugares (
   id SERIAL PRIMARY KEY,
   nombre VARCHAR(100) UNIQUE NOT NULL,
-  categoria VARCHAR(50) NOT NULL,
-  precio VARCHAR(10) NOT NULL,
-  price_level VARCHAR(20) NOT NULL,
-  rating DECIMAL(2,1) NOT NULL,
-  distancia VARCHAR(20) NOT NULL,
   descripcion TEXT NOT NULL,
-  imagen_url TEXT NOT NULL,
-  lat DECIMAL(10,7) NOT NULL,
-  lng DECIMAL(10,7) NOT NULL,
-  imagen TEXT,
-  latitud DOUBLE PRECISION,
-  longitud DOUBLE PRECISION,
-  direccion TEXT,
-  como_llegar TEXT
+  imagen TEXT NOT NULL,
+  rating FLOAT NOT NULL,
+  precio VARCHAR(10) NOT NULL,
+  latitud DOUBLE PRECISION NOT NULL,
+  longitud DOUBLE PRECISION NOT NULL,
+  direccion TEXT NOT NULL,
+  como_llegar TEXT,
+  creado_en TIMESTAMP DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS resenas (

@@ -28,23 +28,17 @@ const runMigrations = async () => {
         const initSql = fs.readFileSync(path.join(__dirname, 'src/migrations/init.sql'), 'utf8');
         await pool.query(initSql);
 
-        // Asegurar que exista la columna foto_url
+        // Asegurar que exista la columna foto_url en usuarios
         await pool.query('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS foto_url TEXT');
 
-        // Asegurar que existan las nuevas columnas de lugares
-        await pool.query('ALTER TABLE lugares ADD COLUMN IF NOT EXISTS imagen TEXT');
-        await pool.query('ALTER TABLE lugares ADD COLUMN IF NOT EXISTS latitud DOUBLE PRECISION');
-        await pool.query('ALTER TABLE lugares ADD COLUMN IF NOT EXISTS longitud DOUBLE PRECISION');
-        await pool.query('ALTER TABLE lugares ADD COLUMN IF NOT EXISTS direccion TEXT');
-        await pool.query('ALTER TABLE lugares ADD COLUMN IF NOT EXISTS como_llegar TEXT');
+        // Reset incondicional: limpiar y re-sembrar los 15 restaurantes
+        await pool.query('DELETE FROM favoritos');
+        await pool.query('DELETE FROM resenas');
+        await pool.query('DELETE FROM lugares');
 
-        // Insertar los 15 restaurantes de Cali si la tabla está vacía
-        const { rows: countRows } = await pool.query('SELECT COUNT(*) FROM lugares');
-        if (parseInt(countRows[0].count) === 0) {
-            const seedSql = fs.readFileSync(path.join(__dirname, 'src/migrations/seed.sql'), 'utf8');
-            await pool.query(seedSql);
-            console.log('🌱 Seed: 15 restaurantes de Cali insertados.');
-        }
+        const seedSql = fs.readFileSync(path.join(__dirname, 'src/migrations/seed.sql'), 'utf8');
+        await pool.query(seedSql);
+        console.log('🌱 Seed: 15 restaurantes de Cali insertados.');
 
         console.log('✅ Base de datos lista.');
     } catch (err) {
@@ -124,72 +118,17 @@ app.post('/api/auth/login', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// --- LUGARES CON OPENSTREETMAP ---
-app.get('/api/lugares', async (req, res) => {
-    const { lat, lng } = req.query;
-    console.log(`[OSM] Buscando restaurantes cerca de: ${lat}, ${lng}`);
-
-    // Query para Cali, Colombia (Solo restaurantes reales)
-    const overpassQuery = `
-        [out:json][timeout:25];
-        (
-          node["amenity"="restaurant"](3.30,-76.60,3.55,-76.40);
-        );
-        out body;
-    `;
-
+// --- LUGARES ---
+app.get('/lugares', async (req, res) => {
     try {
-        const response = await axios.post('https://overpass-api.de/api/interpreter', overpassQuery);
-
-        let restaurantes = response.data.elements
-            .filter(e => e.tags && e.tags.name) // Solo los que tienen nombre
-            .map((e, index) => {
-            const rLat = e.lat;
-            const rLng = e.lon;
-            let distInfo = null;
-
-            if (lat && lng) {
-                const d = calcularDistancia(parseFloat(lat), parseFloat(lng), rLat, rLng);
-                distInfo = calcularTiempos(d);
-            }
-
-            const keywords = ['restaurant', 'food', 'steak', 'pizza', 'gourmet', 'dinner'];
-            const randomKeyword = keywords[index % keywords.length];
-
-            return {
-                id: e.id || index + 100,
-                nombre: e.tags.name,
-                categoria: 'Restaurante',
-                precio: e.tags.price || "$$",
-                rating: 4.0 + (Math.random() * 0.9), // Rating más realista entre 4.0 y 4.9
-                descripcion: e.tags.cuisine ? `Cocina: ${e.tags.cuisine}` : "Excelente restaurante en Cali.",
-                imagen_url: `https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?sig=${index + 100}`,
-                lat: rLat,
-                lng: rLng,
-                distancia_info: distInfo
-            };
-        });
-
-        // Fallback si OSM no devuelve nada
-        if (restaurantes.length === 0) {
-            restaurantes = [
-                { id: 1, nombre: "Restaurante Granada", categoria: "Restaurante", rating: 4.8, lat: 3.4516, lng: -76.5320 },
-                { id: 2, nombre: "Sabor Caleño", categoria: "Típico", rating: 4.5, lat: 3.4480, lng: -76.5350 }
-            ];
-        }
-
-        res.json(restaurantes);
-    } catch (error) {
-        console.error("Error OSM:", error.message);
-        res.json([
-            { id: 99, nombre: "Restaurante Fallback", categoria: "Local", rating: 4.0, lat: 3.44, lng: -76.52 }
-        ]);
+        const { rows } = await pool.query(
+            'SELECT id, nombre, descripcion, imagen, rating, precio, latitud, longitud, direccion, como_llegar, creado_en FROM lugares ORDER BY id ASC'
+        );
+        res.json(rows);
+    } catch (err) {
+        console.error('Error al obtener lugares:', err);
+        res.status(500).json({ error: 'Error al obtener los restaurantes' });
     }
-});
-
-app.get('/api/lugares/cercanos', async (req, res) => {
-    // Reutilizamos la lógica de lugares para simplificar
-    return app._router.handle({ method: 'get', url: '/api/lugares', query: req.query }, res);
 });
 
 app.get('/api/lugares/:id', async (req, res) => {
@@ -282,7 +221,7 @@ app.delete('/api/favoritos/:lugarId', authenticateToken, async (req, res) => {
 app.get('/api/favoritos', authenticateToken, async (req, res) => {
     try {
         const { rows } = await pool.query(
-            'SELECT f.*, l.nombre, l.imagen_url FROM favoritos f JOIN lugares l ON f.lugar_id = l.id WHERE f.usuario_id = $1',
+            'SELECT f.*, l.nombre, l.imagen FROM favoritos f JOIN lugares l ON f.lugar_id = l.id WHERE f.usuario_id = $1',
             [req.user.userId]
         );
         res.json(rows);
