@@ -30,7 +30,25 @@ const runMigrations = async () => {
                 email TEXT UNIQUE NOT NULL,
                 password TEXT NOT NULL,
                 avatar TEXT DEFAULT 'https://i.pravatar.cc/150'
-            )
+            );
+
+            CREATE TABLE IF NOT EXISTS resenas (
+                id SERIAL PRIMARY KEY,
+                lugar_id TEXT NOT NULL,
+                usuario_id INTEGER REFERENCES usuarios(id),
+                usuario_nombre TEXT,
+                comentario TEXT NOT NULL,
+                rating INTEGER NOT NULL,
+                fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS favoritos (
+                id SERIAL PRIMARY KEY,
+                usuario_id INTEGER REFERENCES usuarios(id),
+                lugar_id TEXT NOT NULL,
+                fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(usuario_id, lugar_id)
+            );
         `);
         console.log('✅ Base de datos lista.');
     } catch (err) {
@@ -43,21 +61,65 @@ runMigrations();
 app.put('/api/user/update/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const { nombre, email } = req.body;
+        const { nombre, email, avatar } = req.body;
 
         if (!nombre || !email) {
             return res.status(400).json({ error: 'Datos incompletos' });
         }
 
         await pool.query(
-            'UPDATE usuarios SET nombre = $1, email = $2 WHERE id = $3',
-            [nombre.trim(), email.toLowerCase().trim(), id]
+            'UPDATE usuarios SET nombre = $1, email = $2, avatar = $3 WHERE id = $4',
+            [nombre.trim(), email.toLowerCase().trim(), avatar, id]
         );
 
         res.json({ message: 'Perfil actualizado' });
     } catch (error) {
         console.error("❌ Error update:", error);
         res.status(500).json({ error: 'Error actualizando perfil' });
+    }
+});
+
+// --- ENDPOINTS RESEÑAS ---
+
+app.get('/api/resenas/:lugarId', async (req, res) => {
+    try {
+        const { lugarId } = req.params;
+        const { rows } = await pool.query(
+            'SELECT r.*, u.nombre as usuario_nombre_real FROM resenas r LEFT JOIN usuarios u ON r.usuario_id = u.id WHERE r.lugar_id = $1 ORDER BY r.fecha DESC',
+            [lugarId]
+        );
+        // Formatear para el frontend
+        const resenas = rows.map(r => ({
+            id: r.id,
+            lugar_id: r.lugar_id,
+            usuario: r.usuario_nombre_real || r.usuario_nombre || "Anónimo",
+            comentario: r.comentario,
+            rating: r.rating,
+            fecha: r.fecha
+        }));
+        res.json(resenas);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/resenas', async (req, res) => {
+    try {
+        const { lugar_id, usuario_id, usuario_nombre, comentario, rating } = req.body;
+
+        if (!lugar_id || !comentario || !rating) {
+            return res.status(400).json({ error: "Datos incompletos" });
+        }
+
+        await pool.query(
+            'INSERT INTO resenas (lugar_id, usuario_id, usuario_nombre, comentario, rating) VALUES ($1, $2, $3, $4, $5)',
+            [lugar_id, usuario_id, usuario_nombre, comentario, rating]
+        );
+
+        res.status(201).json({ message: "Reseña guardada" });
+    } catch (error) {
+        console.error("❌ Error reseña:", error);
+        res.status(500).json({ error: "Error al guardar reseña" });
     }
 });
 

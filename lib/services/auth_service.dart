@@ -69,10 +69,38 @@ class AuthService {
     return prefs.getString(_keyEmail);
   }
 
+  Future<String?> getAvatar() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userData = prefs.getString(_keyUser);
+    if (userData != null) {
+      return jsonDecode(userData)['avatar'];
+    }
+    return null;
+  }
+
   // MÉTODO AGREGADO: Obtener userId
   Future<int?> getUserId() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getInt(_keyUserId);
+  }
+
+  // 🔥 NUEVO MÉTODO: Actualizar datos locales
+  Future<void> updateLocalUserData(String nombre, String email, String? avatar) async {
+    final prefs = await SharedPreferences.getInstance();
+    
+    // Actualizar email individual
+    await prefs.setString(_keyEmail, email);
+    
+    // Actualizar nombre y avatar dentro del JSON user_data
+    final userDataString = prefs.getString(_keyUser);
+    if (userDataString != null) {
+      final Map<String, dynamic> userData = jsonDecode(userDataString);
+      userData['nombre'] = nombre;
+      if (avatar != null) {
+        userData['avatar'] = avatar;
+      }
+      await prefs.setString(_keyUser, jsonEncode(userData));
+    }
   }
 
   Future<void> logout() async {

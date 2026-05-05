@@ -27,7 +27,7 @@ class LugaresService {
   // --- RESEÑAS ---
   Future<List<Resena>> getResenas(String lugarId) async {
     try {
-      final response = await http.get(Uri.parse("${ApiConstants.baseUrl}/resenas/$lugarId"));
+      final response = await http.get(Uri.parse("${ApiConstants.baseUrl}/api/resenas/$lugarId"));
       if (response.statusCode == 200) {
         List data = jsonDecode(response.body);
         return data.map((e) => Resena.fromJson(e)).toList();
@@ -36,55 +36,35 @@ class LugaresService {
     return [];
   }
 
-  Future<Map<String, dynamic>> getPromedio(String lugarId) async {
-    try {
-      final response = await http.get(Uri.parse("${ApiConstants.baseUrl}/resenas/promedio/$lugarId"));
-      if (response.statusCode == 200) return jsonDecode(response.body);
-    } catch (e) { print("Error Promedio: $e"); }
-    return {'promedio': '0.0', 'total': 0};
-  }
-
-  // MÉTODO AGREGADO: Enviar reseña con rating al backend
+  // MÉTODO PRINCIPAL: Enviar reseña
   Future<bool> agregarResenaConRating(
-    dynamic lugarId,
+    String lugarId,
     String comentario,
     int rating,
   ) async {
     try {
+      final userId = await _authService.getUserId();
+      final nombre = await _authService.getNombre();
+
       final response = await http.post(
-        Uri.parse("${ApiConstants.baseUrl}/reviews"),
+        Uri.parse("${ApiConstants.baseUrl}/api/resenas"),
         headers: {
           'Content-Type': 'application/json',
         },
         body: jsonEncode({
           'lugar_id': lugarId,
+          'usuario_id': userId,
+          'usuario_nombre': nombre,
           'comentario': comentario,
           'rating': rating,
         }),
       );
 
-      return response.statusCode == 200 || response.statusCode == 201;
+      return response.statusCode == 201;
     } catch (e) {
       print("Error agregarResena: $e");
       return false;
     }
-  }
-
-  Future<bool> publicarResena(String lugarId, String comentario, int rating) async {
-    try {
-      final nombre = await _authService.getNombre() ?? "Anonimo";
-      final response = await http.post(
-        Uri.parse("${ApiConstants.baseUrl}/api/resenas"),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'lugar_id': lugarId,
-          'usuario': nombre,
-          'comentario': comentario,
-          'rating': rating,
-        }),
-      );
-      return response.statusCode == 201;
-    } catch (e) { return false; }
   }
 
   // --- HELPERS ---

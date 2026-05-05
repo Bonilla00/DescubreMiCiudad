@@ -4,7 +4,8 @@ import 'package:http/http.dart' as http;
 import '../services/auth_service.dart';
 import '../constants/api.dart';
 import 'login_screen.dart';
-import 'edit_profile_screen.dart'; // 🔥 IMPORTAR
+import 'edit_profile_screen.dart';
+import 'mis_resenas_screen.dart'; // 🔥 IMPORTAR
 
 class PerfilScreen extends StatefulWidget {
   const PerfilScreen({super.key});
@@ -17,6 +18,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
   final AuthService _authService = AuthService();
   String _nombre = "";
   String? _email;
+  String _avatar = 'https://i.pravatar.cc/150?u=descubremiciudad';
   bool _isLoading = true;
 
   int _resenasCount = 0;
@@ -31,11 +33,15 @@ class _PerfilScreenState extends State<PerfilScreen> {
   Future<void> _loadData() async {
     final nombre = await _authService.getNombre();
     final email = await _authService.getEmail();
+    final avatar = await _authService.getAvatar();
     
     if (mounted) {
       setState(() {
         _nombre = nombre ?? "Usuario";
         _email = email;
+        if (avatar != null && avatar.isNotEmpty) {
+          _avatar = avatar;
+        }
       });
     }
 
@@ -131,9 +137,9 @@ class _PerfilScreenState extends State<PerfilScreen> {
                   shape: BoxShape.circle,
                   border: Border.all(color: Colors.white, width: 4),
                 ),
-                child: const CircleAvatar(
+                child: CircleAvatar(
                   radius: 55,
-                  backgroundImage: NetworkImage('https://i.pravatar.cc/150?u=descubremiciudad'),
+                  backgroundImage: NetworkImage(_avatar),
                 ),
               ),
               Positioned(
@@ -173,6 +179,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
                   builder: (_) => EditProfileScreen(
                     nombreInicial: _nombre,
                     emailInicial: _email ?? "",
+                    avatarInicial: _avatar,
                   ),
                 ),
               );
@@ -220,15 +227,29 @@ class _PerfilScreenState extends State<PerfilScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
         children: [
-          _menuItem(Icons.lock_outline, "Cambiar contraseña", Colors.orange),
-          _menuItem(Icons.chat_bubble_outline, "Mis reseñas", Colors.blue),
-          _menuItem(Icons.star_border, "Mis favoritos", Colors.amber),
+          _menuItem(
+            Icons.lock_outline,
+            "Cambiar contraseña",
+            Colors.orange,
+            () {},
+          ),
+          _menuItem(
+            Icons.chat_bubble_outline,
+            "Mis reseñas",
+            Colors.blue,
+            () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const MisResenasScreen()),
+              );
+            },
+          ),
         ],
       ),
     );
   }
 
-  Widget _menuItem(IconData icon, String title, Color color) {
+  Widget _menuItem(IconData icon, String title, Color color, VoidCallback onTap) {
     return Card(
       margin: const EdgeInsets.only(bottom: 15),
       elevation: 0,
@@ -241,7 +262,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
         leading: Icon(icon, color: color),
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
         trailing: const Icon(Icons.chevron_right, color: Colors.grey),
-        onTap: () {},
+        onTap: onTap,
       ),
     );
   }
