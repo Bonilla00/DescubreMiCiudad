@@ -6,6 +6,7 @@ import '../constants/api.dart';
 class AuthService {
   static const String _keyToken = 'jwt_token';
   static const String _keyUser = 'user_data';
+  static const String _keyEmail = 'user_email'; // Clave para el email
 
   Future<Map<String, dynamic>> login(String email, String password) async {
     try {
@@ -18,8 +19,14 @@ class AuthService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final prefs = await SharedPreferences.getInstance();
+        
+        // Guardar token y datos del usuario
         await prefs.setString(_keyToken, data['token']);
         await prefs.setString(_keyUser, jsonEncode(data['user']));
+        
+        // Guardar el email solicitado
+        await prefs.setString(_keyEmail, email);
+        
         return {'success': true};
       }
       return {'success': false, 'error': 'Credenciales inválidas'};
@@ -56,10 +63,17 @@ class AuthService {
     return null;
   }
 
+  // MÉTODO SOLICITADO: Obtener email desde SharedPreferences
+  Future<String?> getEmail() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keyEmail);
+  }
+
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_keyToken);
     await prefs.remove(_keyUser);
+    await prefs.remove(_keyEmail); // Limpiar email al cerrar sesión
   }
 
   Future<bool> isLoggedIn() async {
