@@ -175,7 +175,6 @@ class _PerfilScreenState extends State<PerfilScreen> {
           _menuItem(Icons.lock_outline, "Cambiar contraseña", Colors.orange),
           _menuItem(Icons.chat_bubble_outline, "Mis reseñas", Colors.blue),
           _menuItem(Icons.star_border, "Mis favoritos", Colors.amber),
-          _menuItem(Icons.help_outline, "Ayuda y soporte", Colors.green),
         ],
       ),
     );
