@@ -49,12 +49,24 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
   Future<void> _toggleFavorite() async {
     if (_favoriteLoading) return;
 
-    setState(() => _favoriteLoading = true);
-    
-    // 🔥 LOGS PARA DEPURACIÓN
+    // 🔥 VERIFICAR LOGIN ANTES DE CONTINUAR
     final userId = await _service.getAuthService().getUserId();
     debugPrint("DEBUG FAVORITOS - USER ID: $userId");
     debugPrint("DEBUG FAVORITOS - PLACE ID: ${widget.place.id}");
+
+    if (userId == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Debes iniciar sesión para guardar favoritos"),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return;
+    }
+
+    setState(() => _favoriteLoading = true);
 
     final success = await _service.toggleFavorito(widget.place.id, _isFavorite);
 
@@ -228,6 +240,20 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
                     width: double.infinity,
                     child: ElevatedButton(
                       onPressed: () async {
+                        // 🔥 VERIFICAR LOGIN ANTES DE ENVIAR RESEÑA
+                        final userId = await _service.getAuthService().getUserId();
+                        if (userId == null) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text("Debes iniciar sesión para escribir una reseña"),
+                                backgroundColor: Colors.orange,
+                              ),
+                            );
+                          }
+                          return;
+                        }
+
                         if (_rating == 0 || _controller.text.isEmpty) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(content: Text("Completa todos los campos")),
