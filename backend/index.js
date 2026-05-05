@@ -47,6 +47,13 @@ pool.connect()
                 fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
 
+            -- Asegurar que las columnas existan si la tabla ya fue creada antes
+            ALTER TABLE resenas ADD COLUMN IF NOT EXISTS usuario_id INTEGER;
+            ALTER TABLE resenas ADD COLUMN IF NOT EXISTS lugar_id TEXT;
+            ALTER TABLE resenas ADD COLUMN IF NOT EXISTS comentario TEXT;
+            ALTER TABLE resenas ADD COLUMN IF NOT EXISTS rating INTEGER;
+            ALTER TABLE resenas ADD COLUMN IF NOT EXISTS fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
             CREATE TABLE IF NOT EXISTS favoritos (
                 id SERIAL PRIMARY KEY,
                 usuario_id INTEGER REFERENCES usuarios(id),
@@ -108,22 +115,22 @@ app.get('/api/resenas/:lugarId', async (req, res) => {
 
 app.post('/api/resenas', async (req, res) => {
     try {
-        console.log("📥 BODY RESEÑAS:", req.body);
+        console.log("📥 BODY RESEÑA RECIBIDA:", req.body);
         const { usuario_id, lugar_id, comentario, rating } = req.body;
 
-        if (!usuario_id || !lugar_id) {
-            return res.status(400).json({ error: "Faltan datos" });
+        if (!usuario_id || !lugar_id || rating === undefined) {
+            console.log("⚠️ Error: Faltan campos obligatorios", { usuario_id, lugar_id, rating });
+            return res.status(400).json({ error: "Datos incompletos (usuario, lugar o rating)" });
         }
 
-        await pool.query(
-            'INSERT INTO resenas (usuario_id, lugar_id, comentario, rating) VALUES ($1, $2, $3, $4)',
-            [usuario_id, lugar_id, comentario, rating]
-        );
+        const query = 'INSERT INTO resenas (usuario_id, lugar_id, comentario, rating) VALUES ($1, $2, $3, $4)';
+        await pool.query(query, [usuario_id, lugar_id, comentario || '', rating]);
 
-        res.json({ ok: true, message: "Reseña guardada" });
+        console.log("✅ Reseña guardada con éxito");
+        res.status(201).json({ ok: true, message: "Reseña guardada" });
     } catch (error) {
-        console.error("❌ ERROR RESEÑAS:", error.message);
-        res.status(500).json({ error: error.message });
+        console.error("❌ ERROR AL GUARDAR RESEÑA:", error.message);
+        res.status(500).json({ error: "Error interno del servidor: " + error.message });
     }
 });
 
