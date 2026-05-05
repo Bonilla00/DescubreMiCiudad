@@ -92,14 +92,15 @@ class LugaresService {
       final userId = await _authService.getUserId();
       if (userId == null) return false;
 
-      final url = Uri.parse("${ApiConstants.baseUrl}/api/favoritos");
       final headers = {'Content-Type': 'application/json'};
-      final body = jsonEncode({'usuario_id': userId, 'lugar_id': lugarId});
 
       if (yaEsFavorito) {
-        final response = await http.delete(url, headers: headers, body: body);
+        final url = Uri.parse("${ApiConstants.baseUrl}/api/favoritos/$userId/$lugarId");
+        final response = await http.delete(url, headers: headers);
         return response.statusCode == 200;
       } else {
+        final url = Uri.parse("${ApiConstants.baseUrl}/api/favoritos");
+        final body = jsonEncode({'usuario_id': userId, 'lugar_id': lugarId});
         final response = await http.post(url, headers: headers, body: body);
         return response.statusCode == 201;
       }

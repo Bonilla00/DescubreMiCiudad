@@ -141,14 +141,14 @@ app.post('/api/favoritos', async (req, res) => {
     }
 });
 
-app.delete('/api/favoritos', async (req, res) => {
+app.delete('/api/favoritos/:userId/:lugarId', async (req, res) => {
     try {
-        const { usuario_id, lugar_id } = req.body;
-        if (!usuario_id || !lugar_id) return res.status(400).json({ error: "Datos incompletos" });
+        const { userId, lugarId } = req.params;
+        if (!userId || !lugarId) return res.status(400).json({ error: "Datos incompletos" });
 
         await pool.query(
             'DELETE FROM favoritos WHERE usuario_id = $1 AND lugar_id = $2',
-            [usuario_id, lugar_id]
+            [userId, lugarId]
         );
         res.json({ message: 'Eliminado de favoritos' });
     } catch (error) {
