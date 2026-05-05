@@ -12,8 +12,6 @@ class PlaceDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Explicación: Se eliminó el loading infinito al usar directamente el objeto 'place'.
-    // Ya no se llama a getLugarById() ni se usa FutureBuilder.
     return Scaffold(
       appBar: AppBar(
         title: Text(place.nombre, style: const TextStyle(color: Colors.white)),
@@ -98,7 +96,7 @@ class PlaceDetailScreen extends StatelessWidget {
                   
                   // INFO ADICIONAL (Estática)
                   _infoRow(Icons.access_time, "Horario: 8AM - 10PM"),
-                  _infoRow(Icons.phone, "Contacto: Cali Sur"),
+                  _infoRow(Icons.location_on, place.direccion.isNotEmpty ? place.direccion : "Cali, Colombia"),
                 ],
               ),
             ),
