@@ -110,7 +110,15 @@ class _CercanosScreenState extends State<CercanosScreen> {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PlaceDetailScreen(place: place))),
+                    onPressed: () {
+                      print("🚀 CLICK VER MÁS: ${place.nombre}");
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => PlaceDetailScreen(place: place),
+                        ),
+                      );
+                    },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF1A73E8),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
