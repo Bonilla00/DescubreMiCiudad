@@ -32,8 +32,8 @@ class _FavoritosScreenState extends State<FavoritosScreen> {
     }
   }
 
-  void _removeFavorito(int id) async {
-    await _favoritosService.toggleFavorito(id);
+  void _removeFavorito(String id) async {
+    await _favoritosService.toggleFavorito(id, actualmenteEsFavorito: true);
     _loadFavoritos();
   }
 

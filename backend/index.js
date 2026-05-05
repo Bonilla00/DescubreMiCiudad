@@ -51,6 +51,9 @@ pool.connect()
                 id SERIAL PRIMARY KEY,
                 usuario_id INTEGER REFERENCES usuarios(id),
                 lugar_id TEXT NOT NULL,
+                nombre TEXT,
+                imagen TEXT,
+                categoria TEXT,
                 fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(usuario_id, lugar_id)
             );
@@ -129,15 +132,17 @@ app.post('/api/resenas', async (req, res) => {
 app.post('/api/favoritos', async (req, res) => {
     try {
         console.log("📥 BODY FAVORITOS:", req.body);
-        const { usuario_id, lugar_id } = req.body;
+        const { usuario_id, lugar_id, nombre, imagen, categoria } = req.body;
 
         if (!usuario_id || !lugar_id) {
             return res.status(400).json({ error: "Faltan datos" });
         }
 
         await pool.query(
-            'INSERT INTO favoritos (usuario_id, lugar_id) VALUES ($1, $2) ON CONFLICT (usuario_id, lugar_id) DO NOTHING',
-            [usuario_id, lugar_id]
+            `INSERT INTO favoritos (usuario_id, lugar_id, nombre, imagen, categoria)
+             VALUES ($1, $2, $3, $4, $5)
+             ON CONFLICT (usuario_id, lugar_id) DO NOTHING`,
+            [usuario_id, lugar_id, nombre, imagen, categoria]
         );
 
         res.json({ ok: true, message: "OK" });
@@ -219,6 +224,19 @@ app.get('/lugares', async (req, res) => {
             id: p.place_id, nombre: p.name, latitud: p.geometry.location.lat, longitud: p.geometry.location.lng, imagen: p.photos ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${p.photos[0].photo_reference}&key=${GOOGLE_API_KEY}` : ""
         })));
     } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+app.get('/api/favoritos/user/:userId', async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const { rows } = await pool.query(
+            'SELECT lugar_id as id, nombre, imagen, categoria FROM favoritos WHERE usuario_id = $1 ORDER BY fecha DESC',
+            [userId]
+        );
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 });
 
 app.listen(PORT, () => console.log(`🚀 Servidor en puerto ${PORT}`));

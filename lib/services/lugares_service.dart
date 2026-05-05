@@ -85,18 +85,24 @@ class LugaresService {
     return false;
   }
 
-  Future<bool> toggleFavorito(String lugarId, bool yaEsFavorito) async {
+  Future<bool> toggleFavorito(Place place, bool yaEsFavorito) async {
     try {
       final userId = await _authService.getUserId();
       if (userId == null) return false;
 
       if (yaEsFavorito) {
-        final url = Uri.parse("${ApiConstants.baseUrl}/api/favoritos/$userId/$lugarId");
+        final url = Uri.parse("${ApiConstants.baseUrl}/api/favoritos/$userId/${place.id}");
         final response = await http.delete(url);
         return response.statusCode == 200;
       } else {
         final url = Uri.parse("${ApiConstants.baseUrl}/api/favoritos");
-        final body = jsonEncode({'usuario_id': userId, 'lugar_id': lugarId});
+        final body = jsonEncode({
+          'usuario_id': userId,
+          'lugar_id': place.id,
+          'nombre': place.nombre,
+          'imagen': place.imagenUrl,
+          'categoria': place.categoria,
+        });
         final response = await http.post(
           url,
           headers: {'Content-Type': 'application/json'},

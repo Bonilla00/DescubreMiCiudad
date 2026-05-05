@@ -8,20 +8,15 @@ import 'auth_service.dart';
 class FavoritosService {
   final AuthService _authService = AuthService();
 
-  Future<Map<String, String>> _getHeaders() async {
-    final token = await _authService.getToken();
-    return {
-      'Content-Type': 'application/json',
-      if (token != null) 'Authorization': 'Bearer $token',
-    };
-  }
-
+  // --- OBTENER TODOS LOS FAVORITOS ---
   Future<List<Place>> getFavoritos() async {
     try {
-      final headers = await _getHeaders();
+      final userId = await _authService.getUserId();
+      if (userId == null) return [];
+
+      // El backend necesita un endpoint para listar favoritos del usuario
       final response = await http.get(
-        Uri.parse(ApiConstants.favorites),
-        headers: headers,
+        Uri.parse("${ApiConstants.baseUrl}/api/favoritos/user/$userId"),
       ).timeout(ApiConstants.timeout);
       
       if (response.statusCode == 200) {
@@ -34,36 +29,52 @@ class FavoritosService {
     return [];
   }
 
-  Future<bool> toggleFavorito(int lugarId) async {
+  // --- ALTERNAR FAVORITO ---
+  Future<bool> toggleFavorito(String lugarId, {bool? actualmenteEsFavorito, Place? place}) async {
     try {
-      final headers = await _getHeaders();
-      final response = await http.post(
-        Uri.parse(ApiConstants.favorites),
-        headers: headers,
-        body: jsonEncode({'lugar_id': lugarId}),
-      ).timeout(ApiConstants.timeout);
-      
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return data['favorito'] ?? false;
+      final userId = await _authService.getUserId();
+      if (userId == null) return false;
+
+      bool eliminar = actualmenteEsFavorito ?? await checkFavorito(lugarId);
+
+      if (eliminar) {
+        final response = await http.delete(
+          Uri.parse("${ApiConstants.baseUrl}/api/favoritos/$userId/$lugarId"),
+        );
+        return response.statusCode == 200;
+      } else {
+        final response = await http.post(
+          Uri.parse("${ApiConstants.baseUrl}/api/favoritos"),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'usuario_id': userId, 
+            'lugar_id': lugarId,
+            'nombre': place?.nombre,
+            'imagen': place?.imagenUrl,
+            'categoria': place?.categoria,
+          }),
+        );
+        return response.statusCode == 201 || response.statusCode == 200;
       }
     } catch (e) {
       print("Error toggleFavorito: $e");
+      return false;
     }
-    return false;
   }
 
-  Future<bool> checkFavorito(int lugarId) async {
+  // --- VERIFICAR ESTADO ---
+  Future<bool> checkFavorito(String lugarId) async {
     try {
-      final headers = await _getHeaders();
+      final userId = await _authService.getUserId();
+      if (userId == null) return false;
+
       final response = await http.get(
-        Uri.parse('${ApiConstants.favorites}/check/$lugarId'),
-        headers: headers,
-      ).timeout(ApiConstants.timeout);
+        Uri.parse("${ApiConstants.baseUrl}/api/favoritos/$userId/$lugarId"),
+      );
       
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        return data['esFavorito'] ?? false;
+        return data['isFavorite'] ?? false;
       }
     } catch (e) {
       print("Error checkFavorito: $e");
