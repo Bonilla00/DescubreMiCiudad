@@ -9,22 +9,53 @@ import 'auth_service.dart';
 class LugaresService {
   final AuthService _authService = AuthService();
 
+  Future<Map<String, String>> _getHeaders() async {
+    final token = await _authService.getToken();
+    return {
+      'Content-Type': 'application/json',
+      if (token != null) 'Authorization': 'Bearer $token',
+    };
+  }
+
   // --- LUGARES ---
   Future<List<Place>> getLugares({double? lat, double? lng}) async {
     try {
       String url = ApiConstants.places;
       if (lat != null && lng != null) url += "?lat=$lat&lng=$lng";
-
-      final response = await http.get(Uri.parse(url)).timeout(ApiConstants.timeout);
+      final response = await http.get(Uri.parse(url));
       if (response.statusCode == 200) {
-        List<dynamic> body = jsonDecode(response.body);
+        List body = jsonDecode(response.body);
         return body.map((item) => _mapearItem(item)).toList();
       }
-    } catch (e) { print("Error API: $e"); }
+    } catch (e) { print(e); }
     return [];
   }
 
-  // --- RESEÑAS ---
+  // --- FAVORITOS ---
+  Future<List<String>> getFavoritos() async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.get(Uri.parse("${ApiConstants.baseUrl}/favoritos"), headers: headers);
+      if (response.statusCode == 200) {
+        return List<String>.from(jsonDecode(response.body));
+      }
+    } catch (e) { print(e); }
+    return [];
+  }
+
+  Future<void> toggleFavorito(String lugarId, bool isFav) async {
+    try {
+      final headers = await _getHeaders();
+      final url = Uri.parse("${ApiConstants.baseUrl}/favoritos/$lugarId");
+      if (isFav) {
+        await http.delete(url, headers: headers);
+      } else {
+        await http.post(url, headers: headers);
+      }
+    } catch (e) { print(e); }
+  }
+
+  // --- RESEÑAS & LIKES ---
   Future<List<Resena>> getResenas(String lugarId) async {
     try {
       final response = await http.get(Uri.parse("${ApiConstants.baseUrl}/resenas/$lugarId"));
@@ -32,36 +63,34 @@ class LugaresService {
         List data = jsonDecode(response.body);
         return data.map((e) => Resena.fromJson(e)).toList();
       }
-    } catch (e) { print("Error Reseñas: $e"); }
+    } catch (e) { print(e); }
     return [];
   }
 
-  Future<Map<String, dynamic>> getPromedio(String lugarId) async {
+  Future<void> toggleLike(int resenaId, bool alreadyLiked) async {
     try {
-      final response = await http.get(Uri.parse("${ApiConstants.baseUrl}/resenas/promedio/$lugarId"));
-      if (response.statusCode == 200) return jsonDecode(response.body);
-    } catch (e) { print("Error Promedio: $e"); }
-    return {'promedio': '0.0', 'total': 0};
+      final headers = await _getHeaders();
+      final url = Uri.parse("${ApiConstants.baseUrl}/likes/$resenaId");
+      if (alreadyLiked) {
+        await http.delete(url, headers: headers);
+      } else {
+        await http.post(url, headers: headers);
+      }
+    } catch (e) { print(e); }
   }
 
   Future<bool> publicarResena(String lugarId, String comentario, int rating) async {
     try {
-      final nombre = await _authService.getNombre() ?? "Anonimo";
+      final headers = await _getHeaders();
       final response = await http.post(
         Uri.parse("${ApiConstants.baseUrl}/api/resenas"),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'lugar_id': lugarId,
-          'usuario': nombre,
-          'comentario': comentario,
-          'rating': rating,
-        }),
+        headers: headers,
+        body: jsonEncode({'lugar_id': lugarId, 'comentario': comentario, 'rating': rating}),
       );
       return response.statusCode == 201;
     } catch (e) { return false; }
   }
 
-  // --- HELPERS ---
   Place _mapearItem(Map<String, dynamic> item) {
     return Place(
       id: item['id']?.toString() ?? '',
@@ -77,6 +106,4 @@ class LugaresService {
       lng: double.tryParse(item['longitud'].toString()) ?? 0.0,
     );
   }
-
-  Future<List<Place>> getLugaresCercanos(double lat, double lng) => getLugares(lat: lat, lng: lng);
 }

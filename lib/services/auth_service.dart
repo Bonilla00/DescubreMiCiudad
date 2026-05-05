@@ -1,61 +1,69 @@
+import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
+import '../constants/api.dart';
 
 class AuthService {
-  static const String _keyLoggedIn = 'is_logged_in';
-  static const String _keyEmail = 'user_email';
-  static const String _keyNombre = 'user_nombre';
-  static const String _keyUserId = 'user_id';
+  static const String _keyToken = 'jwt_token';
+  static const String _keyUser = 'user_data';
 
-  Future<bool> isLoggedIn() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_keyLoggedIn) ?? false;
-  }
-
-  Future<Map<String, dynamic>> register(String nombre, String email, String password) async {
+  Future<Map<String, dynamic>> login(String email, String password) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final userId = DateTime.now().millisecondsSinceEpoch;
-      await prefs.setBool(_keyLoggedIn, true);
-      await prefs.setString(_keyEmail, email);
-      await prefs.setString(_keyNombre, nombre);
-      await prefs.setInt(_keyUserId, userId);
-      return {'success': true, 'userId': userId, 'nombre': nombre};
+      final response = await http.post(
+        Uri.parse(ApiConstants.login),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'email': email, 'password': password}),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(_keyToken, data['token']);
+        await prefs.setString(_keyUser, jsonEncode(data['user']));
+        return {'success': true};
+      }
+      return {'success': false, 'error': 'Credenciales inválidas'};
     } catch (e) {
       return {'success': false, 'error': e.toString()};
     }
   }
 
-  Future<Map<String, dynamic>> login(String email, String password) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_keyLoggedIn, true);
-    final nombre = prefs.getString(_keyNombre) ?? email.split('@')[0];
-    return {'success': true, 'nombre': nombre};
+  Future<Map<String, dynamic>> register(String nombre, String email, String password) async {
+    try {
+      final response = await http.post(
+        Uri.parse(ApiConstants.register),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'nombre': nombre, 'email': email, 'password': password}),
+      );
+      if (response.statusCode == 201) return {'success': true};
+      return {'success': false, 'error': 'Error en registro'};
+    } catch (e) {
+      return {'success': false, 'error': e.toString()};
+    }
   }
 
-  Future<void> logout() async {
+  Future<String?> getToken() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_keyLoggedIn);
+    return prefs.getString(_keyToken);
   }
 
   Future<String?> getNombre() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_keyNombre);
+    final userData = prefs.getString(_keyUser);
+    if (userData != null) {
+      return jsonDecode(userData)['nombre'];
+    }
+    return null;
   }
 
-  Future<String?> getEmail() async {
+  Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_keyEmail);
+    await prefs.remove(_keyToken);
+    await prefs.remove(_keyUser);
   }
 
-  Future<Map<String, dynamic>?> getCurrentUser() async {
-    final prefs = await SharedPreferences.getInstance();
-    final logged = prefs.getBool(_keyLoggedIn) ?? false;
-    if (!logged) return null;
-    return {
-      'nombre': prefs.getString(_keyNombre),
-      'email': prefs.getString(_keyEmail),
-    };
+  Future<bool> isLoggedIn() async {
+    final token = await getToken();
+    return token != null;
   }
-
-  Future<String?> getToken() async => null;
 }
