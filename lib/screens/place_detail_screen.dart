@@ -96,7 +96,8 @@ class PlaceDetailScreen extends StatelessWidget {
                   
                   // INFO ADICIONAL (Estática)
                   _infoRow(Icons.access_time, "Horario: 8AM - 10PM"),
-                  _infoRow(Icons.location_on, place.direccion.isNotEmpty ? place.direccion : "Cali, Colombia"),
+                  // CORRECCIÓN: No se usa place.direccion porque no existe en el modelo
+                  _infoRow(Icons.location_on, "Ubicación: Cali, Colombia"),
                 ],
               ),
             ),
