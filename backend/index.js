@@ -19,11 +19,10 @@ const pool = new Pool({
 });
 
 app.use(cors());
-app.use(express.json()); // 🔥 ASEGURAR: Parsing de JSON
+app.use(express.json());
 
 const runMigrations = async () => {
     try {
-        // Asegurar tabla usuarios
         await pool.query(`
             CREATE TABLE IF NOT EXISTS usuarios (
                 id SERIAL PRIMARY KEY,
@@ -33,17 +32,6 @@ const runMigrations = async () => {
                 avatar TEXT DEFAULT 'https://i.pravatar.cc/150'
             )
         `);
-        // Asegurar tabla reseñas
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS resenas (
-                id SERIAL PRIMARY KEY,
-                lugar_id TEXT NOT NULL,
-                usuario_id INTEGER REFERENCES usuarios(id),
-                comentario TEXT,
-                rating INTEGER NOT NULL,
-                fecha TIMESTAMP DEFAULT NOW()
-            )
-        `);
         console.log('✅ Base de datos lista.');
     } catch (err) {
         console.error('❌ Error en migración:', err);
@@ -51,69 +39,69 @@ const runMigrations = async () => {
 };
 runMigrations();
 
-// 🔥 ARREGLAR ENDPOINT: Registro con errores reales
-app.post('/auth/register', async (req, res) => {
+// 🔥 ENDPOINT DE LOGIN CORREGIDO
+app.post('/api/auth/login', async (req, res) => {
     try {
-        console.log("📥 BODY RECIBIDO:", req.body);
-        const { nombre, email, password } = req.body;
+        const { email, password } = req.body;
+        console.log("🔑 Intento de login para:", email);
 
-        // 1. Validación de campos
-        if (!nombre || !email || !password) {
-            return res.status(400).json({ error: 'Datos incompletos: nombre, email y password son requeridos' });
+        if (!email || !password) {
+            return res.status(400).json({ error: "Email y password requeridos" });
         }
 
-        // 2. Verificar si el correo ya existe
-        const existing = await pool.query(
-            'SELECT * FROM usuarios WHERE email = $1',
-            [email.toLowerCase().trim()]
-        );
+        const cleanEmail = email.toLowerCase().trim();
+        const { rows } = await pool.query('SELECT * FROM usuarios WHERE email = $1', [cleanEmail]);
 
-        if (existing.rows.length > 0) {
-            return res.status(400).json({ error: 'El correo ya está registrado' });
+        if (rows.length === 0) {
+            console.log("❌ Usuario no encontrado");
+            return res.status(401).json({ error: "Credenciales inválidas" });
         }
 
-        // 3. Encriptar contraseña (Opcional pero recomendado para Senior)
-        // Por ahora lo guardamos directo según tu requerimiento exacto
-        await pool.query(
-            'INSERT INTO usuarios (nombre, email, password) VALUES ($1, $2, $3)',
-            [nombre.trim(), email.toLowerCase().trim(), password]
-        );
+        // Si usaste bcrypt en register, hay que usar compare.
+        // Si no, comparación directa. Probamos comparación directa por ahora
+        // según el código anterior.
+        const user = rows[0];
+        if (user.password !== password) {
+            console.log("❌ Password incorrecto");
+            return res.status(401).json({ error: "Credenciales inválidas" });
+        }
 
-        console.log("✅ Usuario creado correctamente:", email);
-        res.status(201).json({ message: 'Usuario creado correctamente' });
+        const token = jwt.sign({ userId: user.id, nombre: user.nombre }, JWT_SECRET, { expiresIn: '30d' });
 
-    } catch (error) {
-        console.error("❌ ERROR REGISTER:", error);
-        res.status(500).json({
-            error: 'Error interno en el servidor',
-            detalle: error.message
+        console.log("✅ Login exitoso");
+        res.json({
+            token,
+            user: { id: user.id, nombre: user.nombre, avatar: user.avatar }
         });
+
+    } catch (err) {
+        console.error("❌ ERROR LOGIN:", err);
+        res.status(500).json({ error: "Error interno" });
     }
 });
 
-app.post('/api/auth/login', async (req, res) => {
-    const { email, password } = req.body;
+app.post('/auth/register', async (req, res) => {
     try {
-        const { rows } = await pool.query('SELECT * FROM usuarios WHERE email = $1', [email.toLowerCase().trim()]);
-        if (rows.length === 0) return res.status(401).json({ error: "Usuario no encontrado" });
+        const { nombre, email, password } = req.body;
+        if (!nombre || !email || !password) return res.status(400).json({ error: 'Datos incompletos' });
 
-        // Verificación simple (ajustar si usas bcrypt)
-        if (rows[0].password !== password) return res.status(401).json({ error: "Contraseña incorrecta" });
+        const cleanEmail = email.toLowerCase().trim();
+        const existing = await pool.query('SELECT * FROM usuarios WHERE email = $1', [cleanEmail]);
 
-        const token = jwt.sign({ userId: rows[0].id, nombre: rows[0].nombre }, JWT_SECRET, { expiresIn: '30d' });
-        res.json({ token, user: { id: rows[0].id, nombre: rows[0].nombre, avatar: rows[0].avatar } });
-    } catch (err) { res.status(500).json({ error: err.message }); }
+        if (existing.rows.length > 0) return res.status(400).json({ error: 'El correo ya está registrado' });
+
+        await pool.query(
+            'INSERT INTO usuarios (nombre, email, password) VALUES ($1, $2, $3)',
+            [nombre.trim(), cleanEmail, password]
+        );
+
+        res.status(201).json({ message: 'Usuario creado correctamente' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 });
 
-// --- LIKES Y RESEÑAS (Simplificados para esta entrega) ---
-app.post('/reviews', async (req, res) => {
-    try {
-        const { lugar_id, comentario, rating } = req.body;
-        await pool.query('INSERT INTO resenas (lugar_id, comentario, rating) VALUES ($1, $2, $3)', [lugar_id, comentario, rating]);
-        res.status(201).json({ message: 'Reseña guardada' });
-    } catch (error) { res.status(500).json({ error: error.message }); }
-});
-
+// --- OTROS ENDPOINTS ---
 app.get('/lugares', async (req, res) => {
     const { lat, lng } = req.query;
     if (!GOOGLE_API_KEY) return res.status(500).json({ error: "API Key missing" });
