@@ -123,6 +123,53 @@ app.post('/api/resenas', async (req, res) => {
     }
 });
 
+// --- ENDPOINTS FAVORITOS ---
+
+app.post('/api/favoritos', async (req, res) => {
+    try {
+        const { usuario_id, lugar_id } = req.body;
+        if (!usuario_id || !lugar_id) return res.status(400).json({ error: "Datos incompletos" });
+
+        await pool.query(
+            'INSERT INTO favoritos (usuario_id, lugar_id) VALUES ($1, $2) ON CONFLICT (usuario_id, lugar_id) DO NOTHING',
+            [usuario_id, lugar_id]
+        );
+        res.status(201).json({ message: 'Agregado a favoritos' });
+    } catch (error) {
+        console.error("❌ Error add favorito:", error);
+        res.status(500).json({ error: 'Error al agregar a favoritos' });
+    }
+});
+
+app.delete('/api/favoritos', async (req, res) => {
+    try {
+        const { usuario_id, lugar_id } = req.body;
+        if (!usuario_id || !lugar_id) return res.status(400).json({ error: "Datos incompletos" });
+
+        await pool.query(
+            'DELETE FROM favoritos WHERE usuario_id = $1 AND lugar_id = $2',
+            [usuario_id, lugar_id]
+        );
+        res.json({ message: 'Eliminado de favoritos' });
+    } catch (error) {
+        console.error("❌ Error delete favorito:", error);
+        res.status(500).json({ error: 'Error al eliminar favorito' });
+    }
+});
+
+app.get('/api/favoritos/:userId/:lugarId', async (req, res) => {
+    try {
+        const { userId, lugarId } = req.params;
+        const result = await pool.query(
+            'SELECT * FROM favoritos WHERE usuario_id = $1 AND lugar_id = $2',
+            [userId, lugarId]
+        );
+        res.json({ isFavorite: result.rows.length > 0 });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // --- OTROS ENDPOINTS (STATS, AUTH, LUGARES) ---
 
 app.get('/api/user/stats/:userId', async (req, res) => {

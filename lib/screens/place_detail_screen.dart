@@ -21,11 +21,57 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
   List<Resena> _resenas = [];
   bool _loading = true;
   int _rating = 0;
+  bool _isFavorite = false;
+  bool _favoriteLoading = false;
 
   @override
   void initState() {
     super.initState();
-    _cargarResenas();
+    _cargarDatos();
+  }
+
+  Future<void> _cargarDatos() async {
+    await Future.wait([
+      _cargarResenas(),
+      _checkFavorite(),
+    ]);
+  }
+
+  Future<void> _checkFavorite() async {
+    final result = await _service.esFavorito(widget.place.id);
+    if (mounted) {
+      setState(() {
+        _isFavorite = result;
+      });
+    }
+  }
+
+  Future<void> _toggleFavorite() async {
+    if (_favoriteLoading) return;
+
+    setState(() => _favoriteLoading = true);
+
+    final success = await _service.toggleFavorito(widget.place.id, _isFavorite);
+
+    if (mounted) {
+      if (success) {
+        setState(() {
+          _isFavorite = !_isFavorite;
+          _favoriteLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_isFavorite ? "Añadido a favoritos" : "Eliminado de favoritos"),
+            duration: const Duration(seconds: 1),
+          ),
+        );
+      } else {
+        setState(() => _favoriteLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Error al actualizar favoritos")),
+        );
+      }
+    }
   }
 
   Future<void> _cargarResenas() async {
@@ -48,6 +94,12 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
         backgroundColor: const Color(0xFF1A73E8),
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
+          IconButton(
+            icon: _favoriteLoading 
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                : Icon(_isFavorite ? Icons.favorite : Icons.favorite_border, color: _isFavorite ? Colors.red : Colors.white),
+            onPressed: _toggleFavorite,
+          ),
           IconButton(
             icon: const Icon(Icons.share),
             onPressed: () => Share.share("${place.nombre}\n${place.descripcion}"),

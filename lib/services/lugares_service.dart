@@ -67,6 +67,48 @@ class LugaresService {
     }
   }
 
+  // --- FAVORITOS ---
+  Future<bool> esFavorito(String lugarId) async {
+    try {
+      final userId = await _authService.getUserId();
+      if (userId == null) return false;
+
+      final response = await http.get(
+        Uri.parse("${ApiConstants.baseUrl}/api/favoritos/$userId/$lugarId"),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['isFavorite'] ?? false;
+      }
+    } catch (e) {
+      print("Error esFavorito: $e");
+    }
+    return false;
+  }
+
+  Future<bool> toggleFavorito(String lugarId, bool yaEsFavorito) async {
+    try {
+      final userId = await _authService.getUserId();
+      if (userId == null) return false;
+
+      final url = Uri.parse("${ApiConstants.baseUrl}/api/favoritos");
+      final headers = {'Content-Type': 'application/json'};
+      final body = jsonEncode({'usuario_id': userId, 'lugar_id': lugarId});
+
+      if (yaEsFavorito) {
+        final response = await http.delete(url, headers: headers, body: body);
+        return response.statusCode == 200;
+      } else {
+        final response = await http.post(url, headers: headers, body: body);
+        return response.statusCode == 201;
+      }
+    } catch (e) {
+      print("Error toggleFavorito: $e");
+      return false;
+    }
+  }
+
   // --- HELPERS ---
   Place _mapearItem(Map<String, dynamic> item) {
     return Place(
