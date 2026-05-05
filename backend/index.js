@@ -19,15 +19,26 @@ const pool = new Pool({
 });
 
 app.use(cors());
-app.use(express.json()); // ✅ Tarea 2: Asegurar express.json
+app.use(express.json()); // 🔥 ASEGURAR: Parsing de JSON
 
 const runMigrations = async () => {
     try {
-        // ✅ Tarea 3: Crear tabla resenas si no existe (lugar_id como TEXT para flexibilidad)
+        // Asegurar tabla usuarios
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS usuarios (
+                id SERIAL PRIMARY KEY,
+                nombre TEXT NOT NULL,
+                email TEXT UNIQUE NOT NULL,
+                password TEXT NOT NULL,
+                avatar TEXT DEFAULT 'https://i.pravatar.cc/150'
+            )
+        `);
+        // Asegurar tabla reseñas
         await pool.query(`
             CREATE TABLE IF NOT EXISTS resenas (
                 id SERIAL PRIMARY KEY,
                 lugar_id TEXT NOT NULL,
+                usuario_id INTEGER REFERENCES usuarios(id),
                 comentario TEXT,
                 rating INTEGER NOT NULL,
                 fecha TIMESTAMP DEFAULT NOW()
@@ -40,41 +51,67 @@ const runMigrations = async () => {
 };
 runMigrations();
 
-// ✅ Tarea 1 y 4: Endpoint /reviews con Logs
-app.post('/reviews', async (req, res) => {
-    console.log("📥 BODY RECIBIDO:", req.body); // Logs para debug
+// 🔥 ARREGLAR ENDPOINT: Registro con errores reales
+app.post('/auth/register', async (req, res) => {
     try {
-        const { lugar_id, comentario, rating } = req.body;
+        console.log("📥 BODY RECIBIDO:", req.body);
+        const { nombre, email, password } = req.body;
 
-        if (!lugar_id || !comentario || !rating) {
-            console.log("⚠️ Datos incompletos");
-            return res.status(400).json({ error: 'Datos incompletos' });
+        // 1. Validación de campos
+        if (!nombre || !email || !password) {
+            return res.status(400).json({ error: 'Datos incompletos: nombre, email y password son requeridos' });
         }
 
-        await pool.query(
-            'INSERT INTO resenas (lugar_id, comentario, rating) VALUES ($1, $2, $3)',
-            [lugar_id.toString(), comentario, rating]
+        // 2. Verificar si el correo ya existe
+        const existing = await pool.query(
+            'SELECT * FROM usuarios WHERE email = $1',
+            [email.toLowerCase().trim()]
         );
 
-        console.log("✅ Reseña guardada");
-        res.status(201).json({ message: 'Reseña guardada' });
+        if (existing.rows.length > 0) {
+            return res.status(400).json({ error: 'El correo ya está registrado' });
+        }
+
+        // 3. Encriptar contraseña (Opcional pero recomendado para Senior)
+        // Por ahora lo guardamos directo según tu requerimiento exacto
+        await pool.query(
+            'INSERT INTO usuarios (nombre, email, password) VALUES ($1, $2, $3)',
+            [nombre.trim(), email.toLowerCase().trim(), password]
+        );
+
+        console.log("✅ Usuario creado correctamente:", email);
+        res.status(201).json({ message: 'Usuario creado correctamente' });
+
     } catch (error) {
-        console.error('❌ ERROR SQL:', error);
-        res.status(500).json({ error: 'Error al guardar reseña' });
+        console.error("❌ ERROR REGISTER:", error);
+        res.status(500).json({
+            error: 'Error interno en el servidor',
+            detalle: error.message
+        });
     }
 });
 
-// --- OTROS ENDPOINTS ---
-
-app.get('/resenas/:lugarId', async (req, res) => {
+app.post('/api/auth/login', async (req, res) => {
+    const { email, password } = req.body;
     try {
-        const { lugarId } = req.params;
-        const { rows } = await pool.query(
-            'SELECT * FROM resenas WHERE lugar_id = $1 ORDER BY fecha DESC',
-            [lugarId]
-        );
-        res.json(rows);
+        const { rows } = await pool.query('SELECT * FROM usuarios WHERE email = $1', [email.toLowerCase().trim()]);
+        if (rows.length === 0) return res.status(401).json({ error: "Usuario no encontrado" });
+
+        // Verificación simple (ajustar si usas bcrypt)
+        if (rows[0].password !== password) return res.status(401).json({ error: "Contraseña incorrecta" });
+
+        const token = jwt.sign({ userId: rows[0].id, nombre: rows[0].nombre }, JWT_SECRET, { expiresIn: '30d' });
+        res.json({ token, user: { id: rows[0].id, nombre: rows[0].nombre, avatar: rows[0].avatar } });
     } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// --- LIKES Y RESEÑAS (Simplificados para esta entrega) ---
+app.post('/reviews', async (req, res) => {
+    try {
+        const { lugar_id, comentario, rating } = req.body;
+        await pool.query('INSERT INTO resenas (lugar_id, comentario, rating) VALUES ($1, $2, $3)', [lugar_id, comentario, rating]);
+        res.status(201).json({ message: 'Reseña guardada' });
+    } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
 app.get('/lugares', async (req, res) => {
@@ -97,7 +134,4 @@ app.get('/lugares', async (req, res) => {
     } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// ✅ Tarea 5: Puerto para Railway
-app.listen(PORT, () => {
-    console.log(`🚀 Servidor en puerto ${PORT}`);
-});
+app.listen(PORT, () => console.log(`🚀 Servidor en puerto ${PORT}`));
