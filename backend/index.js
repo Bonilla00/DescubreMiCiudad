@@ -32,24 +32,6 @@ const runMigrations = async () => {
                 avatar TEXT DEFAULT 'https://i.pravatar.cc/150'
             )
         `);
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS resenas (
-                id SERIAL PRIMARY KEY,
-                usuario_id INTEGER REFERENCES usuarios(id),
-                lugar_id TEXT NOT NULL,
-                comentario TEXT,
-                rating INTEGER NOT NULL,
-                fecha TIMESTAMP DEFAULT NOW()
-            )
-        `);
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS favoritos (
-                id SERIAL PRIMARY KEY,
-                usuario_id INTEGER REFERENCES usuarios(id) ON DELETE CASCADE,
-                lugar_id TEXT NOT NULL,
-                UNIQUE(usuario_id, lugar_id)
-            )
-        `);
         console.log('✅ Base de datos lista.');
     } catch (err) {
         console.error('❌ Error en migración:', err);
@@ -57,86 +39,73 @@ const runMigrations = async () => {
 };
 runMigrations();
 
-// 🔥 ENDPOINT DINÁMICO: Estadísticas del usuario
+// 🔥 ENDPOINT ACTUALIZAR PERFIL
+app.put('/api/user/update/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { nombre, email } = req.body;
+
+        if (!nombre || !email) {
+            return res.status(400).json({ error: 'Datos incompletos' });
+        }
+
+        await pool.query(
+            'UPDATE usuarios SET nombre = $1, email = $2 WHERE id = $3',
+            [nombre.trim(), email.toLowerCase().trim(), id]
+        );
+
+        res.json({ message: 'Perfil actualizado' });
+    } catch (error) {
+        console.error("❌ Error update:", error);
+        res.status(500).json({ error: 'Error actualizando perfil' });
+    }
+});
+
+// --- OTROS ENDPOINTS (STATS, AUTH, LUGARES) ---
+
 app.get('/api/user/stats/:userId', async (req, res) => {
     try {
         const { userId } = req.params;
-
-        const resenas = await pool.query(
-            'SELECT COUNT(*) FROM resenas WHERE usuario_id = $1',
-            [userId]
-        );
-
-        const favoritos = await pool.query(
-            'SELECT COUNT(*) FROM favoritos WHERE usuario_id = $1',
-            [userId]
-        );
-
+        const resenas = await pool.query('SELECT COUNT(*) FROM resenas WHERE usuario_id = $1', [userId]);
+        const favoritos = await pool.query('SELECT COUNT(*) FROM favoritos WHERE usuario_id = $1', [userId]);
         res.json({
             resenas: parseInt(resenas.rows[0].count),
             favoritos: parseInt(favoritos.rows[0].count),
         });
-    } catch (error) {
-        console.error("❌ Error stats:", error);
-        res.status(500).json({ error: 'Error obteniendo stats' });
-    }
+    } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-// --- AUTH ---
 app.post('/api/auth/register', async (req, res) => {
     try {
         const { nombre, email, password } = req.body;
-        if (!nombre || !email || !password) return res.status(400).json({ error: 'Datos incompletos' });
         const cleanEmail = email.toLowerCase().trim();
-        const existing = await pool.query('SELECT * FROM usuarios WHERE email = $1', [cleanEmail]);
-        if (existing.rows.length > 0) return res.status(400).json({ error: 'El correo ya está registrado' });
-
         const hashedPassword = await bcrypt.hash(password, 10);
-        await pool.query(
-            'INSERT INTO usuarios (nombre, email, password) VALUES ($1, $2, $3)',
-            [nombre.trim(), cleanEmail, hashedPassword]
-        );
-        res.status(201).json({ message: 'Usuario creado correctamente' });
+        await pool.query('INSERT INTO usuarios (nombre, email, password) VALUES ($1, $2, $3)', [nombre.trim(), cleanEmail, hashedPassword]);
+        res.status(201).json({ message: 'Usuario creado' });
     } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
 app.post('/api/auth/login', async (req, res) => {
     try {
         const { email, password } = req.body;
-        const cleanEmail = email.toLowerCase().trim();
-        const { rows } = await pool.query('SELECT * FROM usuarios WHERE email = $1', [cleanEmail]);
+        const { rows } = await pool.query('SELECT * FROM usuarios WHERE email = $1', [email.toLowerCase().trim()]);
         if (rows.length === 0) return res.status(401).json({ error: "Credenciales inválidas" });
-
         const user = rows[0];
-        const validPassword = await bcrypt.compare(password, user.password);
-        if (!validPassword) return res.status(401).json({ error: "Credenciales inválidas" });
-
+        const valid = await bcrypt.compare(password, user.password);
+        if (!valid) return res.status(401).json({ error: "Credenciales inválidas" });
         const token = jwt.sign({ userId: user.id, nombre: user.nombre }, JWT_SECRET, { expiresIn: '30d' });
-        res.json({
-            token,
-            user: { id: user.id, nombre: user.nombre, avatar: user.avatar }
-        });
+        res.json({ token, user: { id: user.id, nombre: user.nombre, avatar: user.avatar } });
     } catch (err) { res.status(500).json({ error: "Error interno" }); }
 });
 
-// --- LUGARES ---
 app.get('/lugares', async (req, res) => {
     const { lat, lng } = req.query;
-    if (!GOOGLE_API_KEY) return res.status(500).json({ error: "API Key missing" });
     try {
         const location = lat && lng ? `${lat},${lng}` : "3.4516,-76.5320";
         const response = await axios.get(`https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location}&radius=2000&type=restaurant&key=${GOOGLE_API_KEY}`);
-        const restaurantes = response.data.results.map((place) => ({
-            id: place.place_id,
-            nombre: place.name,
-            descripcion: place.vicinity,
-            imagen: place.photos ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${place.photos[0].photo_reference}&key=${GOOGLE_API_KEY}` : "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4",
-            rating: place.rating || 0.0,
-            precio: "$".repeat(place.price_level || 2),
-            latitud: place.geometry.location.lat,
-            longitud: place.geometry.location.lng,
-        }));
-        res.json(restaurantes);
+        res.json(response.data.results.map(p => ({
+            id: p.place_id, nombre: p.name, latitud: p.geometry.location.lat, longitud: p.geometry.location.lng, imagen: p.photos ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${p.photos[0].photo_reference}&key=${GOOGLE_API_KEY}` : ""
+        })));
     } catch (error) { res.status(500).json({ error: error.message }); }
 });
 

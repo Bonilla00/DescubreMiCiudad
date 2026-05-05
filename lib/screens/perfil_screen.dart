@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import '../services/auth_service.dart';
 import '../constants/api.dart';
 import 'login_screen.dart';
+import 'edit_profile_screen.dart'; // 🔥 IMPORTAR
 
 class PerfilScreen extends StatefulWidget {
   const PerfilScreen({super.key});
@@ -18,7 +19,6 @@ class _PerfilScreenState extends State<PerfilScreen> {
   String? _email;
   bool _isLoading = true;
 
-  // VARIABLES DINÁMICAS
   int _resenasCount = 0;
   int _favoritosCount = 0;
 
@@ -39,7 +39,6 @@ class _PerfilScreenState extends State<PerfilScreen> {
       });
     }
 
-    // CARGAR ESTADÍSTICAS REALES
     await _cargarStats();
 
     if (mounted) {
@@ -141,11 +140,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
                 bottom: 0,
                 right: 0,
                 child: GestureDetector(
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Funcionalidad de cámara próximamente"))
-                    );
-                  },
+                  onTap: () {},
                   child: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: const BoxDecoration(
@@ -168,8 +163,24 @@ class _PerfilScreenState extends State<PerfilScreen> {
             style: TextStyle(fontSize: 16, color: Colors.white.withValues(alpha: 0.8)),
           ),
           const SizedBox(height: 15),
+          
+          // 🔥 BOTÓN EDITAR PERFIL FUNCIONAL
           ElevatedButton(
-            onPressed: () {},
+            onPressed: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => EditProfileScreen(
+                    nombreInicial: _nombre,
+                    emailInicial: _email ?? "",
+                  ),
+                ),
+              );
+              
+              if (result == true) {
+                _loadData(); // Recargar datos al volver
+              }
+            },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.white,
               foregroundColor: const Color(0xFF1A73E8),
