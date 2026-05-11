@@ -125,6 +125,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
   }
 
+  // Helper para mostrar imagen (URL o Base64)
+  ImageProvider _getAvatarProvider(String avatar) {
+    if (avatar.startsWith('data:image')) {
+      final base64String = avatar.split(',').last;
+      return MemoryImage(base64Decode(base64String));
+    }
+    return NetworkImage(avatar);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -149,7 +158,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     backgroundColor: Colors.grey[200],
                     backgroundImage: _imageFile != null 
                         ? FileImage(_imageFile!) 
-                        : NetworkImage(_currentAvatarUrl) as ImageProvider,
+                        : _getAvatarProvider(_currentAvatarUrl),
                   ),
                   Positioned(
                     bottom: 0,
