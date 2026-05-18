@@ -12,6 +12,12 @@ const JWT_SECRET = process.env.JWT_SECRET || 'mi_secreto_super_seguro';
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
 
 console.log(" DATABASE_URL definida:", process.env.DATABASE_URL ? "SÍ" : "NO");
+if (process.env.DATABASE_URL) {
+    const url = new URL(process.env.DATABASE_URL);
+    console.log(" DB Host:", url.hostname);
+    console.log(" DB Port:", url.port);
+    console.log(" DB Name:", url.pathname);
+}
 
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
