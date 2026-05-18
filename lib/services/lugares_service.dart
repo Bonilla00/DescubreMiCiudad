@@ -91,13 +91,13 @@ class LugaresService {
     return false;
   }
 
-  Future<bool> toggleFavorito(Place place, bool actualmenteEsFavorito) async {
+  Future<bool> toggleFavorito(String lugarId, bool actualmenteEsFavorito) async {
     final userId = await _authService.getUserId();
     if (userId == null) return false;
 
     try {
       if (actualmenteEsFavorito) {
-        final url = Uri.parse("${ApiConstants.baseUrl}/api/favoritos/$userId/${place.id}");
+        final url = Uri.parse("${ApiConstants.baseUrl}/api/favoritos/$userId/$lugarId");
         final response = await http.delete(url);
         return response.statusCode == 200;
       } else {
@@ -107,10 +107,7 @@ class LugaresService {
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({
             'usuario_id': userId,
-            'lugar_id': place.id.toString(),
-            'nombre': place.nombre,
-            'imagen': place.imagenUrl,
-            'categoria': place.categoria,
+            'lugar_id': lugarId,
           }),
         );
         return response.statusCode == 201 || response.statusCode == 200;
@@ -119,6 +116,18 @@ class LugaresService {
       debugPrint("Error toggleFavorito: $e");
       return false;
     }
+  }
+
+  Future<List<String>> getFavoritos(String userId) async {
+    try {
+      final url = Uri.parse("${ApiConstants.baseUrl}/api/favoritos/user/$userId");
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        List data = jsonDecode(response.body);
+        return data.map((e) => e.toString()).toList();
+      }
+    } catch (e) { debugPrint("Error getFavoritos: $e"); }
+    return [];
   }
 
   // --- HELPERS ---

@@ -49,9 +49,9 @@ class FavoritosService {
           body: jsonEncode({
             'usuario_id': userId, 
             'lugar_id': lugarId,
-            'nombre': place?.nombre,
-            'imagen': place?.imagenUrl,
-            'categoria': place?.categoria,
+            'nombre': place?.nombre ?? '',
+            'imagen': place?.imagenUrl ?? '',
+            'categoria': place?.categoria ?? '',
           }),
         );
         return response.statusCode == 201 || response.statusCode == 200;

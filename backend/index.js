@@ -59,6 +59,9 @@ pool.connect()
                     id SERIAL PRIMARY KEY,
                     usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
                     lugar_id TEXT NOT NULL,
+                    nombre TEXT,
+                    imagen TEXT,
+                    categoria TEXT,
                     creado_en TIMESTAMP DEFAULT NOW(),
                     UNIQUE(usuario_id, lugar_id)
                 );
@@ -122,7 +125,7 @@ app.post('/api/favoritos', async (req, res) => {
         const { usuario_id, lugar_id, nombre, imagen, categoria } = req.body;
         await pool.query(
             'INSERT INTO favoritos (usuario_id, lugar_id, nombre, imagen, categoria) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (usuario_id, lugar_id) DO UPDATE SET nombre = EXCLUDED.nombre, imagen = EXCLUDED.imagen, categoria = EXCLUDED.categoria',
-            [usuario_id, lugar_id, nombre, imagen, categoria]
+            [usuario_id, lugar_id, nombre || '', imagen || '', categoria || '']
         );
         res.json({ ok: true });
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -131,23 +134,17 @@ app.post('/api/favoritos', async (req, res) => {
 app.get('/api/favoritos/user/:userId', async (req, res) => {
     try {
         const { userId } = req.params;
-        const result = await pool.query('SELECT * FROM favoritos WHERE usuario_id = $1 ORDER BY creado_en DESC', [userId]);
-
-        // Mapear los campos para que coincidan con lo que espera el modelo Place.fromJson
-        const favoritos = result.rows.map(f => ({
+        const result = await pool.query('SELECT lugar_id, nombre, imagen, categoria FROM favoritos WHERE usuario_id = $1 ORDER BY creado_en DESC', [userId]);
+        res.json(result.rows.map(f => ({
             id: f.lugar_id,
-            nombre: f.nombre,
-            imagen: f.imagen,
-            categoria: f.categoria,
-            // Agregamos valores por defecto para que no fallen al parsear si faltan
-            precio: '',
+            nombre: f.nombre || '',
+            imagen: f.imagen || '',
+            categoria: f.categoria || '',
             rating: 0,
             descripcion: '',
             latitud: 0,
             longitud: 0
-        }));
-
-        res.json(favoritos);
+        })));
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

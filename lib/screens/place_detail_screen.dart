@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../models/place_model.dart';
 import '../models/resena_model.dart';
 import '../services/lugares_service.dart';
+import '../services/favoritos_service.dart';
 
 class PlaceDetailScreen extends StatefulWidget {
   final Place place;
@@ -16,6 +17,7 @@ class PlaceDetailScreen extends StatefulWidget {
 
 class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
   final LugaresService _service = LugaresService();
+  final FavoritosService _favoritosService = FavoritosService();
   final TextEditingController _controller = TextEditingController();
   
   List<Resena> _resenas = [];
@@ -38,7 +40,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
   }
 
   Future<void> _checkFavorite() async {
-    final result = await _service.esFavorito(widget.place.id.toString());
+    final result = await _favoritosService.checkFavorito(widget.place.id.toString());
     if (mounted) {
       setState(() => _isFavorite = result);
     }
@@ -58,7 +60,10 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
     }
 
     setState(() => _favoriteLoading = true);
-    final success = await _service.toggleFavorito(widget.place, _isFavorite);
+    final success = await _favoritosService.toggleFavorito(
+      widget.place.id.toString(),
+      place: widget.place,
+    );
 
     if (mounted) {
       if (success) {
