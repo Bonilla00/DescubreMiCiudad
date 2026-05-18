@@ -95,36 +95,45 @@ class LugaresService {
 
   Future<bool> toggleFavorito(Place place, bool actualmenteEsFavorito) async {
     final userId = await _authService.getUserId();
-    if (userId == null) return false;
+    if (userId == null) {
+      debugPrint("Error toggleFavorito: No userId found");
+      return false;
+    }
 
     try {
+      debugPrint("toggleFavorito: userId=$userId, lugarId=${place.id}, actualmenteEsFavorito=$actualmenteEsFavorito");
+      
       if (actualmenteEsFavorito) {
+        // Eliminar de favoritos
         final url = Uri.parse("${ApiConstants.baseUrl}/api/favoritos/$userId/${place.id}");
+        debugPrint("DELETE request to: $url");
         final response = await http.delete(url).timeout(ApiConstants.timeout);
+        debugPrint("DELETE response: status=${response.statusCode}, body=${response.body}");
         return response.statusCode == 200;
       } else {
+        // Agregar a favoritos
         final url = Uri.parse("${ApiConstants.baseUrl}/api/favoritos");
+        final body = {
+          'usuario_id': userId,
+          'lugar_id': place.id.toString(),
+          'nombre': place.nombre ?? '',
+          'imagen': place.imagenUrl ?? '',
+          'categoria': place.categoria ?? '',
+        };
+        debugPrint("POST request to: $url");
+        debugPrint("POST body: $body");
+        
         final response = await http.post(
           url,
           headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'usuario_id': userId,
-            'lugar_id': place.id.toString(),
-            'nombre': place.nombre,
-            'imagen': place.imagenUrl,
-            'categoria': place.categoria,
-          }),
+          body: jsonEncode(body),
         ).timeout(ApiConstants.timeout);
         
-        if (response.statusCode == 201 || response.statusCode == 200) {
-          return true;
-        } else {
-          debugPrint("Error toggleFavorito POST: status ${response.statusCode} - ${response.body}");
-          return false;
-        }
+        debugPrint("POST response: status=${response.statusCode}, body=${response.body}");
+        return response.statusCode == 201 || response.statusCode == 200;
       }
     } catch (e) {
-      debugPrint("Error toggleFavorito: $e");
+      debugPrint("Error toggleFavorito exception: $e");
       return false;
     }
   }
