@@ -28,6 +28,18 @@ class LugaresService {
   }
 
   // --- RESEÑAS (RECONSTRUCCIÓN LIMPIA) ---
+  Future<List<Resena>> getResenasUsuario(String userId) async {
+    try {
+      final url = Uri.parse("${ApiConstants.baseUrl}/api/resenas/usuario/$userId");
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        List data = jsonDecode(response.body);
+        return data.map((e) => Resena.fromJson(e)).toList();
+      }
+    } catch (e) { debugPrint("Error obtener Reseñas Usuario: $e"); }
+    return [];
+  }
+
   Future<List<Resena>> getResenas(String lugarId) async {
     try {
       final url = Uri.parse("${ApiConstants.baseUrl}/api/resenas/$lugarId");

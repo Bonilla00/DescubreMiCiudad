@@ -144,6 +144,19 @@ app.get('/api/resenas/:lugarId', async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.get('/api/resenas/usuario/:userId', async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const result = await pool.query(`
+            SELECT r.*, u.nombre as usuario, u.avatar
+            FROM resenas r
+            JOIN usuarios u ON r.usuario_id = u.id
+            WHERE r.usuario_id=$1
+            ORDER BY r.creado_en DESC`, [userId]);
+        res.json(result.rows);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // --- GOOGLE PLACES PROXY ---
 app.get('/lugares', async (req, res) => {
     const { lat, lng } = req.query;
