@@ -26,19 +26,12 @@ class AuthService {
         await prefs.setString(_keyEmail, email);
         
         // 🔥 GUARDAR userId PARA STATS
-        final userId = data['user']['id'];
-        print("DEBUG LOGIN: Guardando userId=$userId");
-        await prefs.setInt(_keyUserId, userId);
-        
-        // Verificar que se guardó correctamente
-        final savedUserId = prefs.getInt(_keyUserId);
-        print("DEBUG LOGIN: Verificando userId guardado=$savedUserId");
+        await prefs.setInt(_keyUserId, data['user']['id']);
         
         return {'success': true};
       }
       return {'success': false, 'error': 'Credenciales inválidas'};
     } catch (e) {
-      print("DEBUG LOGIN ERROR: $e");
       return {'success': false, 'error': e.toString()};
     }
   }
@@ -88,9 +81,7 @@ class AuthService {
   // MÉTODO AGREGADO: Obtener userId
   Future<int?> getUserId() async {
     final prefs = await SharedPreferences.getInstance();
-    final userId = prefs.getInt(_keyUserId);
-    print("DEBUG getUserId: userId=$userId");
-    return userId;
+    return prefs.getInt(_keyUserId);
   }
 
   // 🔥 NUEVO MÉTODO: Actualizar datos locales
