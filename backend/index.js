@@ -11,61 +11,62 @@ const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'mi_secreto_super_seguro';
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
 
+console.log(" DATABASE_URL definida:", process.env.DATABASE_URL ? "SÍ" : "NO");
+
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false }
 });
 
+let dbReady = false;
+
 pool.connect()
-    .then(() => console.log("✅ Conectado a PostgreSQL"))
+    .then(async (client) => {
+        console.log("✅ Conectado a PostgreSQL");
+        client.release();
+        dbReady = true;
+
+        // CREACIÓN DE TABLAS
+        try {
+            await pool.query(`
+                CREATE TABLE IF NOT EXISTS usuarios (
+                    id SERIAL PRIMARY KEY,
+                    nombre TEXT NOT NULL,
+                    email TEXT UNIQUE NOT NULL,
+                    password TEXT NOT NULL,
+                    avatar TEXT DEFAULT 'https://i.pravatar.cc/150'
+                );
+
+                CREATE TABLE IF NOT EXISTS favoritos (
+                    id SERIAL PRIMARY KEY,
+                    usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+                    lugar_id TEXT NOT NULL,
+                    creado_en TIMESTAMP DEFAULT NOW(),
+                    UNIQUE(usuario_id, lugar_id)
+                );
+
+                CREATE TABLE IF NOT EXISTS resenas (
+                    id SERIAL PRIMARY KEY,
+                    usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+                    lugar_id TEXT NOT NULL,
+                    comentario TEXT NOT NULL,
+                    rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+                    creado_en TIMESTAMP DEFAULT NOW()
+                );
+            `);
+            console.log("✅ Tablas verificadas/creadas.");
+        } catch (err) {
+            console.error("❌ Error creando tablas:", err.message);
+        }
+    })
     .catch(err => console.error("❌ Error conexión DB:", err.message));
-
-// 🔥 RECONSTRUCCIÓN TOTAL (RESET)
-(async () => {
-    try {
-        console.log("🧹 Iniciando reconstrucción total...");
-
-        // BORRADO DE TABLAS ANTIGUAS
-        await pool.query('DROP TABLE IF EXISTS favoritos, resenas CASCADE;');
-
-        // CREACIÓN DE TABLAS LIMPIAS
-        await pool.query(`
-            CREATE TABLE IF NOT EXISTS usuarios (
-                id SERIAL PRIMARY KEY,
-                nombre TEXT NOT NULL,
-                email TEXT UNIQUE NOT NULL,
-                password TEXT NOT NULL,
-                avatar TEXT DEFAULT 'https://i.pravatar.cc/150'
-            );
-
-            CREATE TABLE favoritos (
-                id SERIAL PRIMARY KEY,
-                usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
-                lugar_id TEXT NOT NULL,
-                creado_en TIMESTAMP DEFAULT NOW(),
-                UNIQUE(usuario_id, lugar_id)
-            );
-
-            CREATE TABLE resenas (
-                id SERIAL PRIMARY KEY,
-                usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
-                lugar_id TEXT NOT NULL,
-                comentario TEXT NOT NULL,
-                rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
-                creado_en TIMESTAMP DEFAULT NOW()
-            );
-        `);
-        console.log("✅ Tablas reconstruidas desde cero.");
-    } catch (err) {
-        console.error("❌ Error en reconstrucción:", err.message);
-    }
-})();
 
 app.use(cors());
 app.use(express.json());
 
 // --- AUTH ---
 app.post('/api/auth/register', async (req, res) => {
+    if (!dbReady) return res.status(503).json({ error: "Base de datos no disponible" });
     try {
         const { nombre, email, password } = req.body;
         const hashedPassword = await bcrypt.hash(password, 10);
