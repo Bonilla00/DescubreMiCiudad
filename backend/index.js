@@ -106,9 +106,15 @@ app.post('/api/favoritos', async (req, res) => {
             return res.status(400).json({ error: "Faltan usuario_id o lugar_id" });
         }
         
+        // Asegurar que usuario_id es un número
+        const userIdNum = parseInt(usuario_id, 10);
+        if (isNaN(userIdNum)) {
+            return res.status(400).json({ error: "usuario_id debe ser un número" });
+        }
+        
         const result = await pool.query(
             'INSERT INTO favoritos (usuario_id, lugar_id, nombre, imagen, categoria) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (usuario_id, lugar_id) DO UPDATE SET nombre = EXCLUDED.nombre, imagen = EXCLUDED.imagen, categoria = EXCLUDED.categoria RETURNING id',
-            [usuario_id, lugar_id, nombre, imagen, categoria]
+            [userIdNum, lugar_id, nombre || '', imagen || '', categoria || '']
         );
         res.status(201).json({ ok: true, id: result.rows[0].id });
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -145,7 +151,13 @@ app.delete('/api/favoritos/:userId/:lugarId', async (req, res) => {
             return res.status(400).json({ error: "Faltan parámetros" });
         }
         
-        const result = await pool.query('DELETE FROM favoritos WHERE usuario_id = $1 AND lugar_id = $2', [userId, lugarId]);
+        // Asegurar que userId es un número
+        const userIdNum = parseInt(userId, 10);
+        if (isNaN(userIdNum)) {
+            return res.status(400).json({ error: "userId debe ser un número" });
+        }
+        
+        const result = await pool.query('DELETE FROM favoritos WHERE usuario_id = $1 AND lugar_id = $2', [userIdNum, lugarId]);
         
         if (result.rowCount === 0) {
             return res.status(404).json({ error: "Favorito no encontrado" });
