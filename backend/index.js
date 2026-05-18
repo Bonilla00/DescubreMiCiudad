@@ -12,15 +12,27 @@ const JWT_SECRET = process.env.JWT_SECRET || 'mi_secreto_super_seguro';
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
 
 console.log(" DATABASE_URL definida:", process.env.DATABASE_URL ? "SÍ" : "NO");
-if (process.env.DATABASE_URL) {
-    const url = new URL(process.env.DATABASE_URL);
-    console.log(" DB Host:", url.hostname);
-    console.log(" DB Port:", url.port);
-    console.log(" DB Name:", url.pathname);
+
+// Limpiar DATABASE_URL si tiene prefijo "DATABASE_URL="
+let dbUrl = process.env.DATABASE_URL || '';
+if (dbUrl.startsWith('DATABASE_URL=')) {
+    dbUrl = dbUrl.replace('DATABASE_URL=', '');
+    console.log(" DB_URL corregida (tenía prefijo)");
+}
+
+if (dbUrl) {
+    try {
+        const url = new URL(dbUrl);
+        console.log(" DB Host:", url.hostname);
+        console.log(" DB Port:", url.port);
+        console.log(" DB Name:", url.pathname);
+    } catch (e) {
+        console.log(" DB URL inválida:", dbUrl.substring(0, 50) + "...");
+    }
 }
 
 const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
+    connectionString: dbUrl,
     ssl: { rejectUnauthorized: false }
 });
 
