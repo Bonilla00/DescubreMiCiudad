@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import '../constants/api.dart';
@@ -38,15 +39,25 @@ class AuthService {
 
   Future<Map<String, dynamic>> register(String nombre, String email, String password) async {
     try {
+      debugPrint('📝 Registrando: $email');
+      debugPrint(' URL: ${ApiConstants.register}');
+      
       final response = await http.post(
         Uri.parse(ApiConstants.register),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'nombre': nombre, 'email': email, 'password': password}),
       );
+      
+      debugPrint('📡 Status: ${response.statusCode}');
+      debugPrint('📦 Response: ${response.body}');
+      
       if (response.statusCode == 201) return {'success': true};
-      return {'success': false, 'error': 'Error en registro'};
+      
+      final errorData = jsonDecode(response.body);
+      return {'success': false, 'error': errorData['error'] ?? 'Error en registro'};
     } catch (e) {
-      return {'success': false, 'error': e.toString()};
+      debugPrint('❌ Error registro: $e');
+      return {'success': false, 'error': 'Error de conexión: ${e.toString()}'};
     }
   }
 

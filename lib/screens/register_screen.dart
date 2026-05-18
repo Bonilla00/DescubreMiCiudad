@@ -51,12 +51,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     if (mounted) {
       if (result['success']) {
-        _showSuccessDialog('Cuenta creada exitosamente', () {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const HomeScreen()),
-          );
-        });
+        final loginResult = await _authService.login(
+          _emailController.text.trim(),
+          _passwordController.text.trim(),
+        );
+
+        if (loginResult['success']) {
+          _showSuccessDialog('Cuenta creada exitosamente', () {
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (context) => const HomeScreen()),
+              (route) => false,
+            );
+          });
+        } else {
+          _showSuccessDialog('Cuenta creada. Inicia sesión para continuar.', () {
+            Navigator.pop(context);
+          });
+        }
       } else {
         _showErrorDialog(result['error'] ?? 'Error al registrar');
       }
