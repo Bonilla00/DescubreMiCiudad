@@ -91,13 +91,13 @@ class LugaresService {
     return false;
   }
 
-  Future<bool> toggleFavorito(String lugarId, bool actualmenteEsFavorito) async {
+  Future<bool> toggleFavorito(Place place, bool actualmenteEsFavorito) async {
     final userId = await _authService.getUserId();
     if (userId == null) return false;
 
     try {
       if (actualmenteEsFavorito) {
-        final url = Uri.parse("${ApiConstants.baseUrl}/api/favoritos/$userId/$lugarId");
+        final url = Uri.parse("${ApiConstants.baseUrl}/api/favoritos/$userId/${place.id}");
         final response = await http.delete(url);
         return response.statusCode == 200;
       } else {
@@ -107,7 +107,10 @@ class LugaresService {
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({
             'usuario_id': userId,
-            'lugar_id': lugarId,
+            'lugar_id': place.id.toString(),
+            'nombre': place.nombre,
+            'imagen': place.imagenUrl,
+            'categoria': place.categoria,
           }),
         );
         return response.statusCode == 201 || response.statusCode == 200;

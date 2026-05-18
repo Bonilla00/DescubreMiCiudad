@@ -58,7 +58,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
     }
 
     setState(() => _favoriteLoading = true);
-    final success = await _service.toggleFavorito(widget.place.id.toString(), _isFavorite);
+    final success = await _service.toggleFavorito(widget.place, _isFavorite);
 
     if (mounted) {
       if (success) {

@@ -88,6 +88,15 @@ class _PerfilScreenState extends State<PerfilScreen> {
     }
   }
 
+  // Helper para mostrar imagen (URL o Base64)
+  ImageProvider _getAvatarProvider(String avatar) {
+    if (avatar.startsWith('data:image')) {
+      final base64String = avatar.split(',').last;
+      return MemoryImage(base64Decode(base64String));
+    }
+    return NetworkImage(avatar);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -139,14 +148,29 @@ class _PerfilScreenState extends State<PerfilScreen> {
                 ),
                 child: CircleAvatar(
                   radius: 55,
-                  backgroundImage: NetworkImage(_avatar),
+                  backgroundImage: _getAvatarProvider(_avatar),
                 ),
               ),
               Positioned(
                 bottom: 0,
                 right: 0,
                 child: GestureDetector(
-                  onTap: () {},
+                  onTap: () async {
+                    final result = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => EditProfileScreen(
+                          nombreInicial: _nombre,
+                          emailInicial: _email ?? "",
+                          avatarInicial: _avatar,
+                        ),
+                      ),
+                    );
+
+                    if (result == true) {
+                      _loadData();
+                    }
+                  },
                   child: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: const BoxDecoration(
