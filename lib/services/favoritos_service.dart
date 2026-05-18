@@ -14,7 +14,6 @@ class FavoritosService {
       final userId = await _authService.getUserId();
       if (userId == null) return [];
 
-      // El backend necesita un endpoint para listar favoritos del usuario
       final response = await http.get(
         Uri.parse("${ApiConstants.baseUrl}/api/favoritos/user/$userId"),
       ).timeout(ApiConstants.timeout);
@@ -22,6 +21,8 @@ class FavoritosService {
       if (response.statusCode == 200) {
         List<dynamic> body = jsonDecode(response.body);
         return body.map((item) => Place.fromJson(item)).toList();
+      } else {
+        print("Error getFavoritos: status ${response.statusCode}");
       }
     } catch (e) {
       print("Error getFavoritos: $e");
@@ -40,7 +41,7 @@ class FavoritosService {
       if (eliminar) {
         final response = await http.delete(
           Uri.parse("${ApiConstants.baseUrl}/api/favoritos/$userId/$lugarId"),
-        );
+        ).timeout(ApiConstants.timeout);
         return response.statusCode == 200;
       } else {
         final response = await http.post(
@@ -53,7 +54,7 @@ class FavoritosService {
             'imagen': place?.imagenUrl,
             'categoria': place?.categoria,
           }),
-        );
+        ).timeout(ApiConstants.timeout);
         return response.statusCode == 201 || response.statusCode == 200;
       }
     } catch (e) {
@@ -70,11 +71,13 @@ class FavoritosService {
 
       final response = await http.get(
         Uri.parse("${ApiConstants.baseUrl}/api/favoritos/$userId/$lugarId"),
-      );
+      ).timeout(ApiConstants.timeout);
       
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         return data['isFavorite'] ?? false;
+      } else {
+        print("Error checkFavorito: status ${response.statusCode}");
       }
     } catch (e) {
       print("Error checkFavorito: $e");

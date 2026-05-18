@@ -101,11 +101,16 @@ app.put('/api/user/update/:id', async (req, res) => {
 app.post('/api/favoritos', async (req, res) => {
     try {
         const { usuario_id, lugar_id, nombre, imagen, categoria } = req.body;
-        await pool.query(
-            'INSERT INTO favoritos (usuario_id, lugar_id, nombre, imagen, categoria) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (usuario_id, lugar_id) DO UPDATE SET nombre = EXCLUDED.nombre, imagen = EXCLUDED.imagen, categoria = EXCLUDED.categoria',
+        
+        if (!usuario_id || !lugar_id) {
+            return res.status(400).json({ error: "Faltan usuario_id o lugar_id" });
+        }
+        
+        const result = await pool.query(
+            'INSERT INTO favoritos (usuario_id, lugar_id, nombre, imagen, categoria) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (usuario_id, lugar_id) DO UPDATE SET nombre = EXCLUDED.nombre, imagen = EXCLUDED.imagen, categoria = EXCLUDED.categoria RETURNING id',
             [usuario_id, lugar_id, nombre, imagen, categoria]
         );
-        res.json({ ok: true });
+        res.status(201).json({ ok: true, id: result.rows[0].id });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -135,8 +140,18 @@ app.get('/api/favoritos/user/:userId', async (req, res) => {
 app.delete('/api/favoritos/:userId/:lugarId', async (req, res) => {
     try {
         const { userId, lugarId } = req.params;
-        await pool.query('DELETE FROM favoritos WHERE usuario_id = $1 AND lugar_id = $2', [userId, lugarId]);
-        res.json({ ok: true });
+        
+        if (!userId || !lugarId) {
+            return res.status(400).json({ error: "Faltan parámetros" });
+        }
+        
+        const result = await pool.query('DELETE FROM favoritos WHERE usuario_id = $1 AND lugar_id = $2', [userId, lugarId]);
+        
+        if (result.rowCount === 0) {
+            return res.status(404).json({ error: "Favorito no encontrado" });
+        }
+        
+        res.status(200).json({ ok: true });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -152,8 +167,20 @@ app.get('/api/favoritos/:userId/:lugarId', async (req, res) => {
 app.post('/api/resenas', async (req, res) => {
     try {
         const { usuario_id, lugar_id, comentario, rating } = req.body;
-        await pool.query('INSERT INTO resenas (usuario_id, lugar_id, comentario, rating) VALUES ($1, $2, $3, $4)', [usuario_id, lugar_id, comentario, rating]);
-        res.json({ ok: true });
+        
+        if (!usuario_id || !lugar_id || !comentario || !rating) {
+            return res.status(400).json({ error: "Faltan campos requeridos" });
+        }
+        
+        if (rating < 1 || rating > 5) {
+            return res.status(400).json({ error: "Rating debe estar entre 1 y 5" });
+        }
+        
+        const result = await pool.query(
+            'INSERT INTO resenas (usuario_id, lugar_id, comentario, rating) VALUES ($1, $2, $3, $4) RETURNING id',
+            [usuario_id, lugar_id, comentario, rating]
+        );
+        res.status(201).json({ ok: true, id: result.rows[0].id });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

@@ -31,12 +31,17 @@ class LugaresService {
   Future<List<Resena>> getResenas(String lugarId) async {
     try {
       final url = Uri.parse("${ApiConstants.baseUrl}/api/resenas/$lugarId");
-      final response = await http.get(url);
+      final response = await http.get(url).timeout(ApiConstants.timeout);
+      
       if (response.statusCode == 200) {
         List data = jsonDecode(response.body);
         return data.map((e) => Resena.fromJson(e)).toList();
+      } else {
+        debugPrint("Error obtener Reseñas: status ${response.statusCode}");
       }
-    } catch (e) { debugPrint("Error obtener Reseñas: $e"); }
+    } catch (e) { 
+      debugPrint("Error obtener Reseñas: $e"); 
+    }
     return [];
   }
 
@@ -55,9 +60,14 @@ class LugaresService {
           'comentario': comentario,
           'rating': rating,
         }),
-      );
+      ).timeout(ApiConstants.timeout);
 
-      return response.statusCode == 201 || response.statusCode == 200;
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        return true;
+      } else {
+        debugPrint("Error agregarResena: status ${response.statusCode} - ${response.body}");
+        return false;
+      }
     } catch (e) {
       debugPrint("Error agregarResena: $e");
       return false;
@@ -70,12 +80,16 @@ class LugaresService {
     if (userId == null) return false;
     
     try {
-      final response = await http.get(Uri.parse("${ApiConstants.baseUrl}/api/favoritos/$userId/$lugarId"));
+      final response = await http.get(Uri.parse("${ApiConstants.baseUrl}/api/favoritos/$userId/$lugarId")).timeout(ApiConstants.timeout);
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         return data['isFavorite'] ?? false;
+      } else {
+        debugPrint("Error esFavorito: status ${response.statusCode}");
       }
-    } catch (e) { debugPrint("Error esFavorito: $e"); }
+    } catch (e) { 
+      debugPrint("Error esFavorito: $e"); 
+    }
     return false;
   }
 
@@ -86,7 +100,7 @@ class LugaresService {
     try {
       if (actualmenteEsFavorito) {
         final url = Uri.parse("${ApiConstants.baseUrl}/api/favoritos/$userId/${place.id}");
-        final response = await http.delete(url);
+        final response = await http.delete(url).timeout(ApiConstants.timeout);
         return response.statusCode == 200;
       } else {
         final url = Uri.parse("${ApiConstants.baseUrl}/api/favoritos");
@@ -100,8 +114,14 @@ class LugaresService {
             'imagen': place.imagenUrl,
             'categoria': place.categoria,
           }),
-        );
-        return response.statusCode == 201 || response.statusCode == 200;
+        ).timeout(ApiConstants.timeout);
+        
+        if (response.statusCode == 201 || response.statusCode == 200) {
+          return true;
+        } else {
+          debugPrint("Error toggleFavorito POST: status ${response.statusCode} - ${response.body}");
+          return false;
+        }
       }
     } catch (e) {
       debugPrint("Error toggleFavorito: $e");
