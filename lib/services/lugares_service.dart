@@ -113,12 +113,18 @@ class LugaresService {
       } else {
         // Agregar a favoritos
         final url = Uri.parse("${ApiConstants.baseUrl}/api/favoritos");
+        
+        // Asegurar que todos los campos sean válidos
+        final nombre = place.nombre?.isNotEmpty == true ? place.nombre : 'Sin nombre';
+        final imagen = place.imagenUrl?.isNotEmpty == true ? place.imagenUrl : '';
+        final categoria = place.categoria?.isNotEmpty == true ? place.categoria : 'Lugar';
+        
         final body = {
           'usuario_id': userId,
           'lugar_id': place.id.toString(),
-          'nombre': place.nombre ?? '',
-          'imagen': place.imagenUrl ?? '',
-          'categoria': place.categoria ?? '',
+          'nombre': nombre,
+          'imagen': imagen,
+          'categoria': categoria,
         };
         debugPrint("POST request to: $url");
         debugPrint("POST body: $body");
@@ -130,6 +136,12 @@ class LugaresService {
         ).timeout(ApiConstants.timeout);
         
         debugPrint("POST response: status=${response.statusCode}, body=${response.body}");
+        
+        if (response.statusCode != 201 && response.statusCode != 200) {
+          debugPrint("ERROR: POST failed with status ${response.statusCode}");
+          debugPrint("Response body: ${response.body}");
+        }
+        
         return response.statusCode == 201 || response.statusCode == 200;
       }
     } catch (e) {
