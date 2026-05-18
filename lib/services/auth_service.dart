@@ -38,14 +38,19 @@ class AuthService {
 
   Future<Map<String, dynamic>> register(String nombre, String email, String password) async {
     try {
+      print("DEBUG REGISTER: Intentando registrar con email=$email");
       final response = await http.post(
         Uri.parse(ApiConstants.register),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'nombre': nombre, 'email': email, 'password': password}),
       );
+      print("DEBUG REGISTER: Response status=${response.statusCode}");
+      print("DEBUG REGISTER: Response body=${response.body}");
+      
       if (response.statusCode == 201) return {'success': true};
-      return {'success': false, 'error': 'Error en registro'};
+      return {'success': false, 'error': 'Error en registro - Status: ${response.statusCode}'};
     } catch (e) {
+      print("DEBUG REGISTER ERROR: $e");
       return {'success': false, 'error': e.toString()};
     }
   }
