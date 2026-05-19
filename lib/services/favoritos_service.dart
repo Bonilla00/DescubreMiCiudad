@@ -65,15 +65,25 @@ class FavoritosService {
 
   Future<List<Place>> getFavoritos() async {
     final userId = await _authService.getUserId();
-    if (userId == null) return [];
+    if (userId == null) {
+      debugPrint("getFavoritos: userId es null");
+      return [];
+    }
+
+    debugPrint("getFavoritos: userId=$userId");
 
     try {
-      final response = await http.get(
-        Uri.parse("${ApiConstants.baseUrl}/api/favoritos/user/$userId"),
-      ).timeout(ApiConstants.timeout);
+      final url = "${ApiConstants.baseUrl}/api/favoritos/user/$userId";
+      debugPrint("getFavoritos: URL=$url");
+      
+      final response = await http.get(Uri.parse(url)).timeout(ApiConstants.timeout);
+
+      debugPrint("getFavoritos: status=${response.statusCode}");
+      debugPrint("getFavoritos: body=${response.body}");
 
       if (response.statusCode == 200) {
         List<dynamic> body = jsonDecode(response.body);
+        debugPrint("getFavoritos: items=${body.length}");
         return body.map((item) => Place.fromJson(item)).toList();
       }
     } catch (e) {
