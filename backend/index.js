@@ -44,6 +44,9 @@ pool.connect()
         dbReady = true;
 
         try {
+            await pool.query('DROP TABLE IF EXISTS resenas CASCADE;');
+            await pool.query('DROP TABLE IF EXISTS favoritos CASCADE;');
+            
             await pool.query(`
                 CREATE TABLE IF NOT EXISTS usuarios (
                     id SERIAL PRIMARY KEY,
@@ -54,7 +57,7 @@ pool.connect()
 
                 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS avatar TEXT DEFAULT 'https://i.pravatar.cc/150';
 
-                CREATE TABLE IF NOT EXISTS favoritos (
+                CREATE TABLE favoritos (
                     id SERIAL PRIMARY KEY,
                     usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
                     lugar_id TEXT NOT NULL,
@@ -67,7 +70,7 @@ pool.connect()
                     UNIQUE(usuario_id, lugar_id)
                 );
 
-                CREATE TABLE IF NOT EXISTS resenas (
+                CREATE TABLE resenas (
                     id SERIAL PRIMARY KEY,
                     usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
                     lugar_id TEXT NOT NULL,
@@ -77,7 +80,7 @@ pool.connect()
                     creado_en TIMESTAMP DEFAULT NOW()
                 );
             `);
-            console.log(" Tablas verificadas/creadas.");
+            console.log(" Tablas recreadas exitosamente.");
         } catch (err) {
             console.error(" Error creando tablas:", err.message);
         }
