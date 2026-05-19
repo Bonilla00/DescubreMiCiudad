@@ -5,8 +5,7 @@ class Resena {
   final String comentario;
   final int rating;
   final String fecha;
-  int likes;
-  final String? lugarNombre;
+  final String lugarNombre;
 
   Resena({
     required this.id,
@@ -15,20 +14,18 @@ class Resena {
     required this.comentario,
     required this.rating,
     required this.fecha,
-    this.likes = 0,
-    this.lugarNombre,
+    this.lugarNombre = '',
   });
 
   factory Resena.fromJson(Map<String, dynamic> json) {
     return Resena(
-      id: json['id'],
+      id: json['id'] ?? 0,
       usuario: json['usuario'] ?? 'Usuario',
       avatar: json['avatar'] ?? 'https://i.pravatar.cc/150',
       comentario: json['comentario'] ?? '',
       rating: json['rating'] ?? 5,
-      fecha: json['fecha'] ?? json['creado_en'] ?? DateTime.now().toIso8601String(),
-      likes: int.tryParse(json['likes'].toString()) ?? 0,
-      lugarNombre: json['lugar_nombre'],
+      fecha: json['fecha'] ?? json['creado_en'] ?? '',
+      lugarNombre: json['lugar_nombre'] ?? '',
     );
   }
 }

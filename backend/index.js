@@ -13,7 +13,6 @@ const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
 
 console.log(" DATABASE_URL definida:", process.env.DATABASE_URL ? "SÍ" : "NO");
 
-// Limpiar DATABASE_URL si tiene prefijo "DATABASE_URL="
 let dbUrl = process.env.DATABASE_URL || '';
 if (dbUrl.startsWith('DATABASE_URL=')) {
     dbUrl = dbUrl.replace('DATABASE_URL=', '');
@@ -40,11 +39,10 @@ let dbReady = false;
 
 pool.connect()
     .then(async (client) => {
-        console.log("✅ Conectado a PostgreSQL");
+        console.log(" Conectado a PostgreSQL");
         client.release();
         dbReady = true;
 
-        // CREACIÓN DE TABLAS
         try {
             await pool.query(`
                 CREATE TABLE IF NOT EXISTS usuarios (
@@ -60,9 +58,11 @@ pool.connect()
                     id SERIAL PRIMARY KEY,
                     usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
                     lugar_id TEXT NOT NULL,
-                    nombre TEXT,
-                    imagen TEXT,
-                    categoria TEXT,
+                    nombre TEXT NOT NULL DEFAULT '',
+                    imagen TEXT NOT NULL DEFAULT '',
+                    categoria TEXT NOT NULL DEFAULT '',
+                    latitud FLOAT DEFAULT 0,
+                    longitud FLOAT DEFAULT 0,
                     creado_en TIMESTAMP DEFAULT NOW(),
                     UNIQUE(usuario_id, lugar_id)
                 );
@@ -71,17 +71,18 @@ pool.connect()
                     id SERIAL PRIMARY KEY,
                     usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
                     lugar_id TEXT NOT NULL,
+                    lugar_nombre TEXT NOT NULL DEFAULT '',
                     comentario TEXT NOT NULL,
                     rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
                     creado_en TIMESTAMP DEFAULT NOW()
                 );
             `);
-            console.log("✅ Tablas verificadas/creadas.");
+            console.log(" Tablas verificadas/creadas.");
         } catch (err) {
-            console.error("❌ Error creando tablas:", err.message);
+            console.error(" Error creando tablas:", err.message);
         }
     })
-    .catch(err => console.error("❌ Error conexión DB:", err.message));
+    .catch(err => console.error(" Error conexión DB:", err.message));
 
 app.use(cors());
 app.use(express.json());
@@ -140,10 +141,17 @@ app.put('/api/user/change-password/:id', async (req, res) => {
 // --- FAVORITOS ---
 app.post('/api/favoritos', async (req, res) => {
     try {
-        const { usuario_id, lugar_id, nombre, imagen, categoria } = req.body;
+        const { usuario_id, lugar_id, nombre, imagen, categoria, latitud, longitud } = req.body;
         await pool.query(
-            'INSERT INTO favoritos (usuario_id, lugar_id, nombre, imagen, categoria) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (usuario_id, lugar_id) DO UPDATE SET nombre = EXCLUDED.nombre, imagen = EXCLUDED.imagen, categoria = EXCLUDED.categoria',
-            [usuario_id, lugar_id, nombre || '', imagen || '', categoria || '']
+            `INSERT INTO favoritos (usuario_id, lugar_id, nombre, imagen, categoria, latitud, longitud) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7) 
+             ON CONFLICT (usuario_id, lugar_id) DO UPDATE SET 
+                nombre = EXCLUDED.nombre, 
+                imagen = EXCLUDED.imagen, 
+                categoria = EXCLUDED.categoria,
+                latitud = EXCLUDED.latitud,
+                longitud = EXCLUDED.longitud`,
+            [usuario_id, lugar_id, nombre || '', imagen || '', categoria || '', latitud || 0, longitud || 0]
         );
         res.json({ ok: true });
     } catch (err) { res.status(500).json({ error: err.message }); }
@@ -152,17 +160,11 @@ app.post('/api/favoritos', async (req, res) => {
 app.get('/api/favoritos/user/:userId', async (req, res) => {
     try {
         const { userId } = req.params;
-        const result = await pool.query('SELECT lugar_id, nombre, imagen, categoria FROM favoritos WHERE usuario_id = $1 ORDER BY creado_en DESC', [userId]);
-        res.json(result.rows.map(f => ({
-            id: f.lugar_id,
-            nombre: f.nombre || '',
-            imagen: f.imagen || '',
-            categoria: f.categoria || '',
-            rating: 0,
-            descripcion: '',
-            latitud: 0,
-            longitud: 0
-        })));
+        const result = await pool.query(
+            'SELECT lugar_id as id, nombre, imagen, categoria, latitud, longitud FROM favoritos WHERE usuario_id = $1 ORDER BY creado_en DESC', 
+            [userId]
+        );
+        res.json(result.rows);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -185,8 +187,11 @@ app.get('/api/favoritos/:userId/:lugarId', async (req, res) => {
 // --- RESEÑAS ---
 app.post('/api/resenas', async (req, res) => {
     try {
-        const { usuario_id, lugar_id, comentario, rating } = req.body;
-        await pool.query('INSERT INTO resenas (usuario_id, lugar_id, comentario, rating) VALUES ($1, $2, $3, $4)', [usuario_id, lugar_id, comentario, rating]);
+        const { usuario_id, lugar_id, lugar_nombre, comentario, rating } = req.body;
+        await pool.query(
+            'INSERT INTO resenas (usuario_id, lugar_id, lugar_nombre, comentario, rating) VALUES ($1, $2, $3, $4, $5)', 
+            [usuario_id, lugar_id, lugar_nombre || '', comentario, rating]
+        );
         res.json({ ok: true });
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -208,7 +213,7 @@ app.get('/api/resenas/usuario/:userId', async (req, res) => {
     try {
         const { userId } = req.params;
         const result = await pool.query(`
-            SELECT r.*, u.nombre as usuario, u.avatar
+            SELECT r.id, r.comentario, r.rating, r.creado_en as fecha, r.lugar_nombre, u.nombre as usuario, u.avatar
             FROM resenas r
             JOIN usuarios u ON r.usuario_id = u.id
             WHERE r.usuario_id=$1
@@ -224,9 +229,14 @@ app.get('/lugares', async (req, res) => {
         const location = lat && lng ? `${lat},${lng}` : "3.4516,-76.5320";
         const response = await axios.get(`https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${location}&radius=2000&type=restaurant&key=${GOOGLE_API_KEY}`);
         res.json(response.data.results.map(p => ({
-            id: p.place_id, nombre: p.name, latitud: p.geometry.location.lat, longitud: p.geometry.location.lng,
+            id: p.place_id, 
+            nombre: p.name, 
+            latitud: p.geometry.location.lat, 
+            longitud: p.geometry.location.lng,
             imagen: p.photos ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${p.photos[0].photo_reference}&key=${GOOGLE_API_KEY}` : "",
-            rating: p.rating, descripcion: p.vicinity
+            rating: p.rating || 0, 
+            descripcion: p.vicinity || '',
+            categoria: 'Restaurante'
         })));
     } catch (error) { res.status(500).json({ error: error.message }); }
 });
@@ -240,4 +250,4 @@ app.get('/api/user/stats/:userId', async (req, res) => {
     } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
-app.listen(PORT, () => console.log(`🚀 Servidor reconstruido en puerto ${PORT}`));
+app.listen(PORT, () => console.log(` Servidor en puerto ${PORT}`));

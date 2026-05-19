@@ -16,12 +16,12 @@ class PlaceDetailScreen extends StatefulWidget {
 }
 
 class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
-  final LugaresService _service = LugaresService();
+  final LugaresService _lugaresService = LugaresService();
   final FavoritosService _favoritosService = FavoritosService();
   final TextEditingController _controller = TextEditingController();
   
   List<Resena> _resenas = [];
-  bool _loading = true;
+  bool _loadingResenas = true;
   int _rating = 0;
   bool _isFavorite = false;
   bool _favoriteLoading = false;
@@ -40,7 +40,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
   }
 
   Future<void> _checkFavorite() async {
-    final result = await _favoritosService.checkFavorito(widget.place.id.toString());
+    final result = await _favoritosService.esFavorito(widget.place.id);
     if (mounted) {
       setState(() => _isFavorite = result);
     }
@@ -49,27 +49,17 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
   Future<void> _toggleFavorite() async {
     if (_favoriteLoading) return;
 
-    final userId = await _service.getAuthService().getUserId();
-    if (userId == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Debes iniciar sesión para guardar favoritos"), backgroundColor: Colors.orange),
-        );
-      }
-      return;
-    }
-
     setState(() => _favoriteLoading = true);
-    final success = await _favoritosService.toggleFavorito(
-      widget.place.id.toString(),
-      place: widget.place,
-    );
+    final success = await _favoritosService.toggleFavorito(widget.place.id, widget.place);
 
     if (mounted) {
       if (success) {
         setState(() => _isFavorite = !_isFavorite);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_isFavorite ? "Añadido a favoritos" : "Eliminado de favoritos"), duration: const Duration(seconds: 1)),
+          SnackBar(
+            content: Text(_isFavorite ? "Añadido a favoritos" : "Eliminado de favoritos"), 
+            duration: const Duration(seconds: 1),
+          ),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Error al actualizar favoritos")));
@@ -79,31 +69,30 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
   }
 
   Future<void> _cargarResenas() async {
-    final r = await _service.getResenas(widget.place.id.toString());
+    final r = await _lugaresService.getResenas(widget.place.id);
     if (mounted) {
       setState(() {
         _resenas = r;
-        _loading = false;
+        _loadingResenas = false;
       });
     }
   }
 
   Future<void> _enviarResena() async {
-    final userId = await _service.getAuthService().getUserId();
-    if (userId == null) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Inicia sesión para comentar"), backgroundColor: Colors.orange));
-      return;
-    }
-
     if (_rating == 0 || _controller.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Completa estrellas y comentario")));
       return;
     }
 
-    final success = await _service.agregarResenaConRating(widget.place.id.toString(), _controller.text.trim(), _rating);
+    final success = await _lugaresService.agregarResena(
+      widget.place.id, 
+      widget.place.nombre, 
+      _controller.text.trim(), 
+      _rating,
+    );
 
     if (success) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("¡Reseña guardada!")));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Reseña guardada!")));
       setState(() { _rating = 0; _controller.clear(); });
       _cargarResenas();
     } else {
@@ -144,7 +133,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
                 children: [
                   Text(place.nombre, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
-                  Text("📍 ${place.descripcion}", style: TextStyle(color: Colors.grey[700])),
+                  Text(place.descripcion, style: TextStyle(color: Colors.grey[700])),
                   const Divider(height: 32),
                   const Text("Reseñas de la comunidad", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 16),
@@ -176,7 +165,7 @@ class _PlaceDetailScreenState extends State<PlaceDetailScreen> {
   }
 
   Widget _buildResenasList() {
-    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_loadingResenas) return const Center(child: CircularProgressIndicator());
     if (_resenas.isEmpty) return const Text("Aún no hay reseñas. ¡Sé el primero!", style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic));
     
     return Column(

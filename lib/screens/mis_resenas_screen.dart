@@ -41,7 +41,7 @@ class _MisResenasScreenState extends State<MisResenasScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Colors.grey[100],
       appBar: AppBar(
         title: const Text("Mis reseñas", style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.white,
@@ -56,28 +56,11 @@ class _MisResenasScreenState extends State<MisResenasScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
-                        Icons.chat_bubble_outline,
-                        size: 80,
-                        color: Colors.grey[300],
-                      ),
+                      Icon(Icons.chat_bubble_outline, size: 80, color: Colors.grey[300]),
                       const SizedBox(height: 16),
-                      const Text(
-                        "Aún no tienes reseñas",
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.grey,
-                        ),
-                      ),
+                      const Text("Aún no tienes reseñas", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: Colors.grey)),
                       const SizedBox(height: 8),
-                      Text(
-                        "Tus opiniones sobre lugares aparecerán aquí.",
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[500],
-                        ),
-                      ),
+                      Text("Tus opiniones sobre lugares aparecerán aquí.", style: TextStyle(fontSize: 14, color: Colors.grey[500])),
                     ],
                   ),
                 )
@@ -89,32 +72,22 @@ class _MisResenasScreenState extends State<MisResenasScreen> {
                     return Card(
                       margin: const EdgeInsets.only(bottom: 12),
                       elevation: 0,
-                      color: Colors.grey[50],
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        side: BorderSide(color: Colors.grey[200]!),
-                      ),
+                      color: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundImage: NetworkImage(resena.avatar),
-                        ),
-                        title: Text(
-                          resena.usuario,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        leading: CircleAvatar(backgroundImage: NetworkImage(resena.avatar)),
+                        title: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(resena.usuario, style: const TextStyle(fontWeight: FontWeight.bold)),
+                            if (resena.lugarNombre.isNotEmpty) Text(resena.lugarNombre, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                          ],
                         ),
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Row(
-                              children: List.generate(
-                                5,
-                                (i) => Icon(
-                                  i < resena.rating ? Icons.star : Icons.star_border,
-                                  color: Colors.amber,
-                                  size: 14,
-                                ),
-                              ),
-                            ),
+                            const SizedBox(height: 4),
+                            Row(children: List.generate(5, (i) => Icon(i < resena.rating ? Icons.star : Icons.star_border, color: Colors.amber, size: 14))),
                             const SizedBox(height: 4),
                             Text(resena.comentario),
                           ],

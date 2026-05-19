@@ -22,7 +22,7 @@ class _FavoritosScreenState extends State<FavoritosScreen> {
     _loadFavoritos();
   }
 
-  void _loadFavoritos() async {
+  Future<void> _loadFavoritos() async {
     final list = await _favoritosService.getFavoritos();
     if (mounted) {
       setState(() {
@@ -32,8 +32,20 @@ class _FavoritosScreenState extends State<FavoritosScreen> {
     }
   }
 
-  void _removeFavorito(String id) async {
-    await _favoritosService.toggleFavorito(id, actualmenteEsFavorito: true);
+  Future<void> _removeFavorito(String id) async {
+    final userId = await _favoritosService.getAuthService().getUserId();
+    if (userId == null) return;
+
+    await _favoritosService.toggleFavorito(id, Place(
+      id: id,
+      nombre: '',
+      categoria: '',
+      rating: 0,
+      descripcion: '',
+      imagenUrl: '',
+      lat: 0,
+      lng: 0,
+    ));
     _loadFavoritos();
   }
 
@@ -55,6 +67,8 @@ class _FavoritosScreenState extends State<FavoritosScreen> {
                       Icon(Icons.favorite_border, size: 80, color: Colors.grey),
                       SizedBox(height: 16),
                       Text("No tienes favoritos aún", style: TextStyle(color: Colors.grey, fontSize: 18)),
+                      SizedBox(height: 8),
+                      Text("Explora lugares y guarda tus favoritos", style: TextStyle(color: Colors.grey)),
                     ],
                   ),
                 )
@@ -64,7 +78,7 @@ class _FavoritosScreenState extends State<FavoritosScreen> {
                   itemBuilder: (context, i) {
                     final place = _favoritos[i];
                     return Dismissible(
-                      key: Key(place.id.toString()),
+                      key: Key(place.id),
                       direction: DismissDirection.endToStart,
                       background: Container(
                         alignment: Alignment.centerRight,
@@ -85,10 +99,24 @@ class _FavoritosScreenState extends State<FavoritosScreen> {
                               width: 80,
                               height: 80,
                               fit: BoxFit.cover,
+                              placeholder: (context, url) => Container(width: 80, height: 80, color: Colors.grey[200]),
+                              errorWidget: (context, url, error) => Container(width: 80, height: 80, color: Colors.grey[200], child: const Icon(Icons.restaurant)),
                             ),
                           ),
                           title: Text(place.nombre, style: const TextStyle(fontWeight: FontWeight.bold)),
-                          subtitle: Text(place.categoria),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(place.categoria),
+                              if (place.rating > 0) Row(
+                                children: [
+                                  const Icon(Icons.star, color: Colors.amber, size: 16),
+                                  const SizedBox(width: 4),
+                                  Text(place.rating.toStringAsFixed(1)),
+                                ],
+                              ),
+                            ],
+                          ),
                           trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                           onTap: () => Navigator.push(
                             context,

@@ -102,8 +102,9 @@ class _CercanosScreenState extends State<CercanosScreen> {
                 Row(
                   children: [
                     const Icon(Icons.star, color: Colors.amber, size: 16),
-                    Text(" ${place.rating}  ", style: const TextStyle(fontWeight: FontWeight.bold)),
-                    Text(place.precio, style: TextStyle(color: Colors.grey[600])),
+                    Text(" ${place.rating.toStringAsFixed(1)}", style: const TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(width: 8),
+                    Text(place.descripcion, style: TextStyle(color: Colors.grey[600]), maxLines: 1, overflow: TextOverflow.ellipsis),
                   ],
                 ),
                 const SizedBox(height: 12),
