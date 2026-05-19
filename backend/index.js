@@ -51,9 +51,10 @@ pool.connect()
                     id SERIAL PRIMARY KEY,
                     nombre TEXT NOT NULL,
                     email TEXT UNIQUE NOT NULL,
-                    password TEXT NOT NULL,
-                    avatar TEXT DEFAULT 'https://i.pravatar.cc/150'
+                    password TEXT NOT NULL
                 );
+
+                ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS avatar TEXT DEFAULT 'https://i.pravatar.cc/150';
 
                 CREATE TABLE IF NOT EXISTS favoritos (
                     id SERIAL PRIMARY KEY,
