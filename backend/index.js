@@ -119,6 +119,23 @@ app.put('/api/user/update/:id', async (req, res) => {
     } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
+app.put('/api/user/change-password/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { currentPassword, newPassword } = req.body;
+
+        const { rows } = await pool.query('SELECT password FROM usuarios WHERE id = $1', [id]);
+        if (rows.length === 0) return res.status(404).json({ error: "Usuario no encontrado" });
+
+        const valid = await bcrypt.compare(currentPassword, rows[0].password);
+        if (!valid) return res.status(401).json({ error: "Contraseña actual incorrecta" });
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        await pool.query('UPDATE usuarios SET password = $1 WHERE id = $2', [hashedPassword, id]);
+        res.json({ ok: true, message: "Contraseña actualizada" });
+    } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
 // --- FAVORITOS ---
 app.post('/api/favoritos', async (req, res) => {
     try {

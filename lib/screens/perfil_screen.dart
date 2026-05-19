@@ -5,7 +5,9 @@ import '../services/auth_service.dart';
 import '../constants/api.dart';
 import 'login_screen.dart';
 import 'edit_profile_screen.dart';
-import 'mis_resenas_screen.dart'; // 🔥 IMPORTAR
+import 'mis_resenas_screen.dart';
+import 'favoritos_screen.dart';
+import 'change_password_screen.dart';
 
 class PerfilScreen extends StatefulWidget {
   const PerfilScreen({super.key});
@@ -88,7 +90,6 @@ class _PerfilScreenState extends State<PerfilScreen> {
     }
   }
 
-  // Helper para mostrar imagen (URL o Base64)
   ImageProvider _getAvatarProvider(String avatar) {
     if (avatar.startsWith('data:image')) {
       final base64String = avatar.split(',').last;
@@ -100,7 +101,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Colors.grey[100],
       appBar: AppBar(
         title: const Text("Mi Perfil", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         backgroundColor: const Color(0xFF1A73E8),
@@ -113,13 +114,38 @@ class _PerfilScreenState extends State<PerfilScreen> {
               child: Column(
                 children: [
                   _buildHeader(),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 16),
                   _buildStats(),
-                  const SizedBox(height: 30),
-                  _buildProfileOptions(),
-                  const SizedBox(height: 30),
-                  _buildLogoutButton(),
-                  const SizedBox(height: 40),
+                  const SizedBox(height: 16),
+                  _buildSection("Información personal", [
+                    _menuItem(Icons.person_outline, "Editar perfil", Colors.blue, () async {
+                      final result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => EditProfileScreen(
+                            nombreInicial: _nombre,
+                            emailInicial: _email ?? "",
+                            avatarInicial: _avatar,
+                          ),
+                        ),
+                      );
+                      if (result == true) _loadData();
+                    }),
+                    _menuItem(Icons.chat_bubble_outline, "Mis reseñas", Colors.blue, () {
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const MisResenasScreen()));
+                    }),
+                    _menuItem(Icons.favorite_outline, "Mis favoritos", Colors.blue, () {
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const FavoritosScreen()));
+                    }),
+                  ]),
+                  const SizedBox(height: 16),
+                  _buildSection("Inicio de sesión y seguridad", [
+                    _menuItem(Icons.lock_outline, "Cambiar contraseña", Colors.orange, () {
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const ChangePasswordScreen()));
+                    }),
+                    _menuItem(Icons.logout, "Cerrar sesión", Colors.red, _logout),
+                  ]),
+                  const SizedBox(height: 24),
                 ],
               ),
             ),
@@ -129,7 +155,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
   Widget _buildHeader() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.only(bottom: 30),
+      padding: const EdgeInsets.symmetric(vertical: 30),
       decoration: const BoxDecoration(
         color: Color(0xFF1A73E8),
         borderRadius: BorderRadius.only(
@@ -166,10 +192,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
                         ),
                       ),
                     );
-
-                    if (result == true) {
-                      _loadData();
-                    }
+                    if (result == true) _loadData();
                   },
                   child: Container(
                     padding: const EdgeInsets.all(8),
@@ -192,48 +215,28 @@ class _PerfilScreenState extends State<PerfilScreen> {
             _email ?? "Sin correo",
             style: TextStyle(fontSize: 16, color: Colors.white.withValues(alpha: 0.8)),
           ),
-          const SizedBox(height: 15),
-          
-          // 🔥 BOTÓN EDITAR PERFIL FUNCIONAL
-          ElevatedButton(
-            onPressed: () async {
-              final result = await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => EditProfileScreen(
-                    nombreInicial: _nombre,
-                    emailInicial: _email ?? "",
-                    avatarInicial: _avatar,
-                  ),
-                ),
-              );
-              
-              if (result == true) {
-                _loadData(); // Recargar datos al volver
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: const Color(0xFF1A73E8),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              padding: const EdgeInsets.symmetric(horizontal: 30),
-              elevation: 0,
-            ),
-            child: const Text("Editar Perfil", style: TextStyle(fontWeight: FontWeight.bold)),
-          ),
         ],
       ),
     );
   }
 
   Widget _buildStats() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        _statItem("$_resenasCount", "Reseñas"),
-        Container(height: 40, width: 1, color: Colors.grey[300]),
-        _statItem("$_favoritosCount", "Favoritos"),
-      ],
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10)],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _statItem("$_resenasCount", "Reseñas"),
+          Container(height: 40, width: 1, color: Colors.grey[300]),
+          _statItem("$_favoritosCount", "Favoritos"),
+        ],
+      ),
     );
   }
 
@@ -246,70 +249,36 @@ class _PerfilScreenState extends State<PerfilScreen> {
     );
   }
 
-  Widget _buildProfileOptions() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+  Widget _buildSection(String title, List<Widget> items) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10)],
+      ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _menuItem(
-            Icons.lock_outline,
-            "Cambiar contraseña",
-            Colors.orange,
-            () {},
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+            child: Text(
+              title,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1A73E8)),
+            ),
           ),
-          _menuItem(
-            Icons.chat_bubble_outline,
-            "Mis reseñas",
-            Colors.blue,
-            () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const MisResenasScreen()),
-              );
-            },
-          ),
+          ...items,
         ],
       ),
     );
   }
 
   Widget _menuItem(IconData icon, String title, Color color, VoidCallback onTap) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 15),
-      elevation: 0,
-      color: Colors.grey[50],
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(15),
-        side: BorderSide(color: Colors.grey[200]!),
-      ),
-      child: ListTile(
-        leading: Icon(icon, color: color),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
-        trailing: const Icon(Icons.chevron_right, color: Colors.grey),
-        onTap: onTap,
-      ),
-    );
-  }
-
-  Widget _buildLogoutButton() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: SizedBox(
-        width: double.infinity,
-        child: ElevatedButton.icon(
-          onPressed: _logout,
-          icon: const Icon(Icons.logout),
-          label: const Text("Cerrar Sesión", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.red[50],
-            foregroundColor: Colors.red,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-            elevation: 0,
-            side: BorderSide(color: Colors.red[100]!),
-          ),
-        ),
-      ),
+    return ListTile(
+      leading: Icon(icon, color: color),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
+      trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+      onTap: onTap,
     );
   }
 }
