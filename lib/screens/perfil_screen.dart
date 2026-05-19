@@ -20,7 +20,6 @@ class _PerfilScreenState extends State<PerfilScreen> {
   final AuthService _authService = AuthService();
   String _nombre = "";
   String? _email;
-  String _avatar = 'https://i.pravatar.cc/150?u=descubremiciudad';
   bool _isLoading = true;
 
   int _resenasCount = 0;
@@ -32,18 +31,18 @@ class _PerfilScreenState extends State<PerfilScreen> {
     _loadData();
   }
 
+  Future<void> refreshStats() async {
+    await _cargarStats();
+  }
+
   Future<void> _loadData() async {
     final nombre = await _authService.getNombre();
     final email = await _authService.getEmail();
-    final avatar = await _authService.getAvatar();
     
     if (mounted) {
       setState(() {
         _nombre = nombre ?? "Usuario";
         _email = email;
-        if (avatar != null && avatar.isNotEmpty) {
-          _avatar = avatar;
-        }
       });
     }
 
@@ -90,12 +89,9 @@ class _PerfilScreenState extends State<PerfilScreen> {
     }
   }
 
-  ImageProvider _getAvatarProvider(String avatar) {
-    if (avatar.startsWith('data:image')) {
-      final base64String = avatar.split(',').last;
-      return MemoryImage(base64Decode(base64String));
-    }
-    return NetworkImage(avatar);
+  String _getInitial() {
+    if (_nombre.isEmpty) return "?";
+    return _nombre[0].toUpperCase();
   }
 
   @override
@@ -125,7 +121,6 @@ class _PerfilScreenState extends State<PerfilScreen> {
                           builder: (_) => EditProfileScreen(
                             nombreInicial: _nombre,
                             emailInicial: _email ?? "",
-                            avatarInicial: _avatar,
                           ),
                         ),
                       );
@@ -165,46 +160,13 @@ class _PerfilScreenState extends State<PerfilScreen> {
       ),
       child: Column(
         children: [
-          Stack(
-            children: [
-              Container(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 4),
-                ),
-                child: CircleAvatar(
-                  radius: 55,
-                  backgroundImage: _getAvatarProvider(_avatar),
-                ),
-              ),
-              Positioned(
-                bottom: 0,
-                right: 0,
-                child: GestureDetector(
-                  onTap: () async {
-                    final result = await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => EditProfileScreen(
-                          nombreInicial: _nombre,
-                          emailInicial: _email ?? "",
-                          avatarInicial: _avatar,
-                        ),
-                      ),
-                    );
-                    if (result == true) _loadData();
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.camera_alt, color: Color(0xFF1A73E8), size: 20),
-                  ),
-                ),
-              ),
-            ],
+          CircleAvatar(
+            radius: 55,
+            backgroundColor: Colors.white.withValues(alpha: 0.2),
+            child: Text(
+              _getInitial(),
+              style: const TextStyle(fontSize: 48, fontWeight: FontWeight.bold, color: Colors.white),
+            ),
           ),
           const SizedBox(height: 16),
           Text(

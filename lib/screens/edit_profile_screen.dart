@@ -1,21 +1,17 @@
-import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:image_picker/image_picker.dart';
+import 'dart:convert';
 import '../services/auth_service.dart';
 import '../constants/api.dart';
 
 class EditProfileScreen extends StatefulWidget {
   final String nombreInicial;
   final String emailInicial;
-  final String avatarInicial;
 
   const EditProfileScreen({
     super.key,
     required this.nombreInicial,
     required this.emailInicial,
-    required this.avatarInicial,
   });
 
   @override
@@ -27,17 +23,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late TextEditingController nombreController;
   late TextEditingController emailController;
   bool _isLoading = false;
-  
-  File? _imageFile;
-  final ImagePicker _picker = ImagePicker();
-  String _currentAvatarUrl = "";
 
   @override
   void initState() {
     super.initState();
     nombreController = TextEditingController(text: widget.nombreInicial);
     emailController = TextEditingController(text: widget.emailInicial);
-    _currentAvatarUrl = widget.avatarInicial;
   }
 
   @override
@@ -47,23 +38,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     super.dispose();
   }
 
-  Future<void> _pickImage() async {
-    try {
-      final XFile? pickedFile = await _picker.pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 500,
-        maxHeight: 500,
-        imageQuality: 85,
-      );
-
-      if (pickedFile != null) {
-        setState(() {
-          _imageFile = File(pickedFile.path);
-        });
-      }
-    } catch (e) {
-      debugPrint("Error al seleccionar imagen: $e");
-    }
+  String _getInitial() {
+    final nombre = nombreController.text.trim();
+    if (nombre.isEmpty) return "?";
+    return nombre[0].toUpperCase();
   }
 
   Future<void> actualizarPerfil() async {
@@ -83,26 +61,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       final userId = await _authService.getUserId();
       if (userId == null) throw Exception("No se encontró el ID de usuario");
 
-      String? avatarBase64;
-      if (_imageFile != null) {
-        // En una app real subiríamos a S3/Cloudinary, aquí simulamos con base64 o mantenemos la URL si no hay cambio
-        final bytes = await _imageFile!.readAsBytes();
-        avatarBase64 = "data:image/png;base64,${base64Encode(bytes)}";
-      }
-
       final response = await http.put(
         Uri.parse("${ApiConstants.baseUrl}/api/user/update/$userId"),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'nombre': nombre,
           'email': email,
-          'avatar': avatarBase64 ?? _currentAvatarUrl,
         }),
       );
 
       if (response.statusCode == 200) {
-        // ACTUALIZAR DATOS LOCALES ANTES DE VOLVER
-        await _authService.updateLocalUserData(nombre, email, avatarBase64 ?? _currentAvatarUrl);
+        await _authService.updateLocalUserData(nombre, email, null);
         
         if (mounted) {
           Navigator.pop(context, true);
@@ -125,15 +94,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
   }
 
-  // Helper para mostrar imagen (URL o Base64)
-  ImageProvider _getAvatarProvider(String avatar) {
-    if (avatar.startsWith('data:image')) {
-      final base64String = avatar.split(',').last;
-      return MemoryImage(base64Decode(base64String));
-    }
-    return NetworkImage(avatar);
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -151,28 +111,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Center(
-              child: Stack(
-                children: [
-                  CircleAvatar(
-                    radius: 60,
-                    backgroundColor: Colors.grey[200],
-                    backgroundImage: _imageFile != null 
-                        ? FileImage(_imageFile!) 
-                        : _getAvatarProvider(_currentAvatarUrl),
-                  ),
-                  Positioned(
-                    bottom: 0,
-                    right: 0,
-                    child: GestureDetector(
-                      onTap: _pickImage,
-                      child: const CircleAvatar(
-                        backgroundColor: Color(0xFF1A73E8),
-                        radius: 20,
-                        child: Icon(Icons.camera_alt, color: Colors.white, size: 20),
-                      ),
-                    ),
-                  ),
-                ],
+              child: CircleAvatar(
+                radius: 60,
+                backgroundColor: const Color(0xFF1A73E8),
+                child: Text(
+                  _getInitial(),
+                  style: const TextStyle(fontSize: 56, fontWeight: FontWeight.bold, color: Colors.white),
+                ),
               ),
             ),
             const SizedBox(height: 32),
@@ -185,6 +130,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 prefixIcon: const Icon(Icons.person_outline),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               ),
+              onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: 20),
             const Text("Correo electrónico", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),

@@ -99,10 +99,8 @@ class AuthService {
   Future<void> updateLocalUserData(String nombre, String email, String? avatar) async {
     final prefs = await SharedPreferences.getInstance();
     
-    // Actualizar email individual
     await prefs.setString(_keyEmail, email);
     
-    // Actualizar nombre y avatar dentro del JSON user_data
     final userDataString = prefs.getString(_keyUser);
     if (userDataString != null) {
       final Map<String, dynamic> userData = jsonDecode(userDataString);

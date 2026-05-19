@@ -13,21 +13,27 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
   final AuthService _authService = AuthService();
+  final GlobalKey<PerfilScreenState> _perfilKey = GlobalKey<PerfilScreenState>();
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: IndexedStack(
         index: _selectedIndex,
-        children: const [
-          CercanosScreen(),
-          FavoritosScreen(),
-          PerfilScreen(),
+        children: [
+          const CercanosScreen(),
+          const FavoritosScreen(),
+          PerfilScreen(key: _perfilKey),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
-        onTap: (index) => setState(() => _selectedIndex = index),
+        onTap: (index) {
+          if (index == 2 && _selectedIndex == 2) {
+            _perfilKey.currentState?.refreshStats();
+          }
+          setState(() => _selectedIndex = index);
+        },
         selectedItemColor: const Color(0xFF1A73E8),
         unselectedItemColor: Colors.grey,
         type: BottomNavigationBarType.fixed,
